@@ -1,5 +1,11 @@
 version: 2.1
 
+DOCKER_IMAGE: &DOCKER_IMAGE "kanopi/templr"
+
+DOCKER_CREDS: &DOCKER_CREDS
+  docker_username: DOCKERHUB_USER
+  docker_password: DOCKERHUB_PASS
+
 orbs:
   ci-tools: kanopi/ci-tools@2
   docker: circleci/docker@3
@@ -131,13 +137,11 @@ jobs:
       - checkout
       - setup_remote_docker
       - docker/check:
+          <<: DOCKER_CREDS
           arch: amd64
-          docker_username: DOCKERHUB_USER
-          docker_password: DOCKERHUB_PASS
       - docker/check:
+          <<: DOCKER_CREDS
           arch: arm64
-          docker_username: DOCKERHUB_USER
-          docker_password: DOCKERHUB_PASS
       - run:
           name: Build Multi Builder
           command: make builder
@@ -147,7 +151,7 @@ jobs:
           steps:
             - docker/build:
                 attach_at: .
-                image: kanopi/templr
+                image: *DOCKER_IMAGE
                 tag: "build-$(echo \"${CIRCLE_BRANCH}\" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd 'a-z0-9_.-'),build-$(echo \"${CIRCLE_BRANCH}\" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd 'a-z0-9_.-')-${CIRCLE_SHA1:0:7}"
                 extra_build_args: "--platform linux/amd64,linux/arm64 --push"
       - unless:
@@ -156,13 +160,12 @@ jobs:
           steps:
             - docker/build:
                 attach_at: .
-                image: kanopi/templr
+                image: *DOCKER_IMAGE
                 tag: "<< pipeline.git.tag >>"
                 extra_build_args: "--platform linux/amd64,linux/arm64 --push"
             - docker/update_description:
-                docker_username: DOCKERHUB_USER
-                docker_password: DOCKERHUB_PASS
-                image: kanopoi/templr
+                <<: DOCKER_CREDS
+                image: *DOCKER_IMAGE
 
 workflows:
   version: 2
