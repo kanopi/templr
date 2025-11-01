@@ -126,8 +126,6 @@ jobs:
     executor: go-executor
     steps:
       - checkout
-      - attach_workspace:
-          at: .
       - setup_remote_docker
       - docker/check:
           arch: amd64
@@ -140,6 +138,11 @@ jobs:
       - run:
           name: Build Multi Builder
           command: make builder
+      - docker/build:
+          attach_at: .
+          image: kanopi/templr
+          tag: "build-${CIRCLE_SHA1:0:7}"
+          extra_build_args: "--platform linux/amd64,linux/arm64 --push"
 
 workflows:
   version: 2
