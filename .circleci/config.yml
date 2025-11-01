@@ -148,12 +148,8 @@ jobs:
             - docker/build:
                 attach_at: .
                 image: kanopi/templr
-                tag: "<< pipeline.git.tag >>"
+                tag: "build-${CIRCLE_BRANCH},build-${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
                 extra_build_args: "--platform linux/amd64,linux/arm64 --push"
-            - docker/update_description:
-                docker_username: DOCKERHUB_USER
-                docker_password: DOCKERHUB_PASS
-                image: kanopoi/templr
       - unless:
           condition:
             equal: ["", << pipeline.git.tag >>]
@@ -161,8 +157,12 @@ jobs:
             - docker/build:
                 attach_at: .
                 image: kanopi/templr
-                tag: "build-${CIRCLE_BRANCH},build-${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
+                tag: "<< pipeline.git.tag >>"
                 extra_build_args: "--platform linux/amd64,linux/arm64 --push"
+            - docker/update_description:
+                docker_username: DOCKERHUB_USER
+                docker_password: DOCKERHUB_PASS
+                image: kanopoi/templr
 
 workflows:
   version: 2
