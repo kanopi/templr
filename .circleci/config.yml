@@ -1,9 +1,8 @@
-
-
 version: 2.1
 
 orbs:
   ci-tools: kanopi/ci-tools@2
+  docker: circleci/docker@3
 
 executors:
   go-executor:
@@ -63,8 +62,8 @@ jobs:
               LDFLAGS="-X main.Version=${CIRCLE_TAG}"
               VERSION="${CIRCLE_TAG}"
             else
-              LDFLAGS="-X main.GitBranch=${CIRCLE_BRANCH}"
-              VERSION="${CIRCLE_BRANCH}-dev"
+              LDFLAGS="-X main.Version=${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
+              VERSION="${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
             fi
 
             export GOFLAGS="-trimpath -buildmode=pie"
@@ -108,15 +107,62 @@ jobs:
       - store_artifacts:
           path: dist
           destination: templr-artifacts
-      
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .bin
+
+      - when:
+          condition:
+            not:
+              equal: ["", << pipeline.git.tag >>]
+          steps:
+            - run:
+                name: Post Artifact
+                command: |
+                  for f in .bin/templr*; do
+                    gh -R "github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" release upload ${CIRCLE_TAG} "${f}" --clobber
+                  done
+  
+  build_docker:
+    executor: go-executor
+    steps:
+      - checkout
+      - setup_remote_docker
+      - docker/check:
+          arch: amd64
+          docker_username: DOCKERHUB_USER
+          docker_password: DOCKERHUB_PASS
+      - docker/check:
+          arch: arm64
+          docker_username: DOCKERHUB_USER
+          docker_password: DOCKERHUB_PASS
       - run:
-          name: Post Artifact
-          command: |
-            if [[ "${CIRCLE_TAG}" != "" ]]; then
-              for f in .bin/templr*; do
-                gh -R "github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" release upload ${CIRCLE_TAG} "${f}" --clobber
-              done
-            fi
+          name: Build Multi Builder
+          command: make builder
+      - when:
+          condition:
+            equal: ["", << pipeline.git.tag >>]
+          steps:
+            - docker/build:
+                attach_at: .
+                image: kanopi/templr
+                tag: "build-$(echo \"${CIRCLE_BRANCH}\" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd 'a-z0-9_.-'),build-$(echo \"${CIRCLE_BRANCH}\" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd 'a-z0-9_.-')-${CIRCLE_SHA1:0:7}"
+                extra_build_args: "--platform linux/amd64,linux/arm64 --push"
+      - unless:
+          condition:
+            equal: ["", << pipeline.git.tag >>]
+          steps:
+            - docker/build:
+                attach_at: .
+                image: kanopi/templr
+                tag: "<< pipeline.git.tag >>"
+                extra_build_args: "--platform linux/amd64,linux/arm64 --push"
+            - docker/update_description:
+                docker_username: DOCKERHUB_USER
+                docker_password: DOCKERHUB_PASS
+                image: kanopoi/templr
 
 workflows:
   version: 2
@@ -133,6 +179,15 @@ workflows:
           context: kanopi-code
           requires:
             - test
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
+      - build_docker:
+          context: kanopi-code
+          requires:
+            - build
           filters:
             tags:
               only: /.*/
