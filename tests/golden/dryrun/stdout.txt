@@ -1,0 +1,2 @@
+[dry-run] would inject guard into /Users/seandietrich/projects/templr/.out/dryrun/preview.txt
+[dry-run] would render /Users/seandietrich/projects/templr/playground/dryrun/basic.tpl -> /Users/seandietrich/projects/templr/.out/dryrun/preview.txt

@@ -1,0 +1,11 @@
+# #templr generated
+newVar: x
+nested:
+  path: 123
+  
+merged:
+  a: 1
+  b:
+      c: 2
+      d: 3
+  

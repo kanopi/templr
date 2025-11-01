@@ -1,0 +1,3 @@
+# #templr generated
+name: dirsvc
+image: alpine:3.20

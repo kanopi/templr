@@ -1,0 +1,8 @@
+name: "My App"
+images:
+  env:
+    DB_HOST: ""
+    CACHE_HOST: ""
+mariadb:
+  env:
+    DB_HOST: db

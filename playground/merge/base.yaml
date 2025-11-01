@@ -1,0 +1,5 @@
+name: svc
+image:
+  repository: app
+  tag: latest
+replicas: 1

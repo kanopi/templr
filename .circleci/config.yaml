@@ -1,0 +1,78 @@
+
+
+version: 2.1
+
+executors:
+  go-executor:
+    docker:
+      - image: cimg/go:1.23
+    working_directory: ~/project
+
+jobs:
+  test:
+    executor: go-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-go-mod-{{ checksum "go.sum" }}
+            - v1-go-mod-
+      - run:
+          name: Install dependencies
+          command: |
+            go mod tidy
+      - save_cache:
+          key: v1-go-mod-{{ checksum "go.sum" }}
+          paths:
+            - ~/go/pkg/mod
+      - run:
+          name: Build project
+          command: go build -o .bin/templr .
+      - run:
+          name: Run tests
+          command: |
+            tests/run_examples.sh
+      - store_artifacts:
+          path: .out
+          destination: test-results
+      - store_test_results:
+          path: .out
+
+  build:
+    executor: go-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-go-mod-{{ checksum "go.sum" }}
+            - v1-go-mod-
+      - run:
+          name: Build templr binaries for Linux, macOS, and Windows (with version)
+          command: |
+            mkdir -p .bin
+            set -e
+            if [[ -n "${CIRCLE_TAG:-}" ]]; then
+              LDFLAGS="-X main.Version=${CIRCLE_TAG}"
+            else
+              LDFLAGS="-X main.GitBranch=${CIRCLE_BRANCH}"
+            fi
+            # Linux
+            GOOS=linux GOARCH=amd64  go build -ldflags "$LDFLAGS" -o .bin/templr-linux-amd64 .
+            GOOS=linux GOARCH=arm64  go build -ldflags "$LDFLAGS" -o .bin/templr-linux-arm64 .
+            # macOS
+            GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o .bin/templr-darwin-amd64 .
+            GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o .bin/templr-darwin-arm64 .
+            # Windows
+            GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o .bin/templr-windows-amd64.exe .
+      - store_artifacts:
+          path: .bin
+          destination: templr-binaries
+
+workflows:
+  version: 2
+  test-and-build:
+    jobs:
+      - test
+      - build:
+          requires:
+            - test

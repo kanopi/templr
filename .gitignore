@@ -1,0 +1,32 @@
+/templr
+/vendor
+*.log
+
+# Build artifacts
+/.out/
+/.bin/
+/dist/
+/build/
+/coverage/
+
+# Test outputs
+*.test
+*.out
+
+# Archives
+*.zip
+*.tar.gz
+
+# System files
+.DS_Store
+.env
+
+# IDE files
+.idea/
+.vscode/
+
+# Executables and libraries
+*.exe
+*.dll
+*.so
+*.dylib
