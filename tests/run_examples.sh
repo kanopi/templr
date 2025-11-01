@@ -11,6 +11,13 @@ info()  { echo -e "\033[1;34m[info]\033[0m $*"; }
 pass()  { echo -e "\033[1;32m[pass]\033[0m $*"; }
 fail()  { echo -e "\033[1;31m[fail]\033[0m $*"; exit 1; }
 
+normalize_paths() {
+  # Replace system-specific absolute paths with stable placeholders
+  sed -e "s|$ROOT|<ROOT>|g" \
+      -e "s|$OUT_DIR|<OUT>|g" \
+      -e "s|$EXAMPLES_DIR|<PLAY>|g"
+}
+
 mkdir -p "$BIN_DIR" "$OUT_DIR" "$GOLDEN_DIR"
 
 info "Building templr..."
@@ -149,7 +156,7 @@ run_and_diff "filesglob/list.txt"   "$BIN_DIR/templr" -dir "$EXAMPLES_DIR/filesg
 
 # dry-run messaging
 mkdir -p "$OUT_DIR/dryrun"
-"$BIN_DIR/templr" -in "$EXAMPLES_DIR/dryrun/basic.tpl" -out "$OUT_DIR/dryrun/preview.txt" --dry-run > "$OUT_DIR/dryrun/stdout.txt"
+"$BIN_DIR/templr" -in "$EXAMPLES_DIR/dryrun/basic.tpl" -out "$OUT_DIR/dryrun/preview.txt" --dry-run | normalize_paths > "$OUT_DIR/dryrun/stdout.txt"
 if [[ -n "${UPDATE_GOLDEN:-}" ]]; then
   mkdir -p "$GOLDEN_DIR/dryrun"
   cp "$OUT_DIR/dryrun/stdout.txt" "$GOLDEN_DIR/dryrun/stdout.txt"
