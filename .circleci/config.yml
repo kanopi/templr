@@ -137,10 +137,10 @@ jobs:
       - checkout
       - setup_remote_docker
       - docker/check:
-          <<: DOCKER_CREDS
+          <<: *DOCKER_CREDS
           arch: amd64
       - docker/check:
-          <<: DOCKER_CREDS
+          <<: *DOCKER_CREDS
           arch: arm64
       - run:
           name: Build Multi Builder
@@ -164,7 +164,7 @@ jobs:
                 tag: "<< pipeline.git.tag >>"
                 extra_build_args: "--platform linux/amd64,linux/arm64 --push"
             - docker/update_description:
-                <<: DOCKER_CREDS
+                <<: *DOCKER_CREDS
                 image: *DOCKER_IMAGE
 
 workflows:
