@@ -107,21 +107,24 @@ jobs:
       - store_artifacts:
           path: dist
           destination: templr-artifacts
-      
-      - run:
-          name: Post Artifact
-          command: |
-            if [[ "${CIRCLE_TAG}" != "" ]]; then
-              for f in .bin/templr*; do
-                gh -R "github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" release upload ${CIRCLE_TAG} "${f}" --clobber
-              done
-            fi
 
       - persist_to_workspace:
           root: .
           paths:
             - .bin
 
+      - when:
+          condition:
+            not:
+              equal: ["", << pipeline.git.tag >>]
+          steps:
+            - run:
+                name: Post Artifact
+                command: |
+                  for f in .bin/templr*; do
+                    gh -R "github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" release upload ${CIRCLE_TAG} "${f}" --clobber
+                  done
+  
   build_docker:
     executor: go-executor
     steps:
@@ -138,11 +141,28 @@ jobs:
       - run:
           name: Build Multi Builder
           command: make builder
-      - docker/build:
-          attach_at: .
-          image: kanopi/templr
-          tag: "build-${CIRCLE_SHA1:0:7}"
-          extra_build_args: "--platform linux/amd64,linux/arm64 --push"
+      - when:
+          condition:
+            equal: ["", << pipeline.git.tag >>]
+          steps:
+            - docker/build:
+                attach_at: .
+                image: kanopi/templr
+                tag: "<< pipeline.git.tag >>"
+                extra_build_args: "--platform linux/amd64,linux/arm64 --push"
+            - docker/update_description:
+                docker_username: DOCKERHUB_USER
+                docker_password: DOCKERHUB_PASS
+                image: kanopoi/templr
+      - unless:
+          condition:
+            equal: ["", << pipeline.git.tag >>]
+          steps:
+            - docker/build:
+                attach_at: .
+                image: kanopi/templr
+                tag: "build-${CIRCLE_BRANCH},build-${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
+                extra_build_args: "--platform linux/amd64,linux/arm64 --push"
 
 workflows:
   version: 2
