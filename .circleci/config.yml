@@ -4,7 +4,7 @@ DOCKER_IMAGE: &DOCKER_IMAGE "kanopi/templr"
 
 DOCKER_CREDS: &DOCKER_CREDS
   docker_username: DOCKERHUB_USER
-  docker_password: DOCKERHUB_PASS
+  docker_password: DOCKERHUB_TOKEN
 
 orbs:
   ci-tools: kanopi/ci-tools@2
@@ -16,7 +16,7 @@ executors:
       - image: cimg/go:1.23
         auth:
           username: $DOCKERHUB_USER
-          password: $DOCKERHUB_PASS
+          password: $DOCKERHUB_TOKEN
     working_directory: ~/project
 
 jobs:
