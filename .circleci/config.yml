@@ -113,7 +113,7 @@ jobs:
           name: Post Artifact
           command: |
             if [[ "${CIRCLE_TAG}" != "" ]]; then
-              for f in .bin/*; do
+              for f in .bin/templr*; do
                 gh -R "github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" release upload ${CIRCLE_TAG} "${f}" --clobber
               done
             fi
