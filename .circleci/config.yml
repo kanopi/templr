@@ -148,7 +148,7 @@ jobs:
             - docker/build:
                 attach_at: .
                 image: kanopi/templr
-                tag: "build-${CIRCLE_BRANCH},build-${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
+                tag: "build-$(echo \"${CIRCLE_BRANCH}\" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd 'a-z0-9_.-'),build-$(echo \"${CIRCLE_BRANCH}\" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd 'a-z0-9_.-')-${CIRCLE_SHA1:0:7}"
                 extra_build_args: "--platform linux/amd64,linux/arm64 --push"
       - unless:
           condition:
