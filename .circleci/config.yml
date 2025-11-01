@@ -9,6 +9,35 @@ executors:
     working_directory: ~/project
 
 jobs:
+  test:
+    executor: go-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-go-mod-{{ checksum "go.sum" }}
+            - v1-go-mod-
+      - run:
+          name: Install dependencies
+          command: |
+            go mod tidy
+      - save_cache:
+          key: v1-go-mod-{{ checksum "go.sum" }}
+          paths:
+            - ~/go/pkg/mod
+      - run:
+          name: Build project
+          command: go build -o .bin/templr .
+      - run:
+          name: Run tests
+          command: |
+            tests/run_examples.sh
+      - store_artifacts:
+          path: .out
+          destination: test-results
+      - store_test_results:
+          path: .out
+
   build:
     executor: go-executor
     steps:
