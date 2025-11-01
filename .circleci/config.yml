@@ -163,9 +163,6 @@ jobs:
                 image: *DOCKER_IMAGE
                 tag: "<< pipeline.git.tag >>"
                 extra_build_args: "--platform linux/amd64,linux/arm64 --push"
-            - docker/update_description:
-                <<: *DOCKER_CREDS
-                image: *DOCKER_IMAGE
 
 workflows:
   version: 2
