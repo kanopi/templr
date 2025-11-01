@@ -81,20 +81,20 @@ jobs:
             (cd dist && sha256sum * > SHA256SUMS)
 
       # (Optional) SBOM (requires anchore/syft pre-installed or add a setup step)
-      # - run:
-      #     name: Generate SBOM (syft)
-      #     command: |
-      #       curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b .bin
-      #       for z in dist/*.zip; do
-      #         .bin/syft packages file:"$z" -o spdx-json > "${z%.zip}.spdx.json" || true
-      #       done
+      - run:
+          name: Generate SBOM (syft)
+          command: |
+            curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b .bin
+            for z in dist/*.zip; do
+              .bin/syft packages file:"$z" -o spdx-json > "${z%.zip}.spdx.json" || true
+            done
 
       # (Optional) Cosign signatures (requires keys/secrets)
-      # - run:
-      #     name: Sign checksums with cosign
-      #     command: |
-      #       # cosign sign-blob --key $COSIGN_KEY dist/SHA256SUMS > dist/SHA256SUMS.sig
-      #       echo "Add cosign signing here if keys are available"
+      - run:
+          name: Sign checksums with cosign
+          command: |
+            # cosign sign-blob --key $COSIGN_KEY dist/SHA256SUMS > dist/SHA256SUMS.sig
+            echo "Add cosign signing here if keys are available"
 
       - store_artifacts:
           path: dist
