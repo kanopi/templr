@@ -1,12 +1,9 @@
-# Build
-FROM golang:1.23 AS build
-WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o /out/templr .
+FROM alpine:3
 
-# Run
-FROM scratch
-COPY --from=build /out/templr /templr
-ENTRYPOINT ["/templr"]
+ARG TARGETARCH
+
+COPY .bin/templr-linux-${TARGETARCH} /usr/local/bin/templr
+
+RUN set +x /usr/local/bin/templr
+
+ENTRYPOINT [ "/usr/local/bin/templr" ]
