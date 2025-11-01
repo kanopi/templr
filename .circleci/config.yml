@@ -2,10 +2,16 @@
 
 version: 2.1
 
+orbs:
+  ci-tools: kanopi/ci-tools@2
+
 executors:
   go-executor:
     docker:
       - image: cimg/go:1.23
+        auth:
+          username: $DOCKERHUB_USER
+          password: $DOCKERHUB_PASS
     working_directory: ~/project
 
 jobs:
@@ -42,6 +48,7 @@ jobs:
     executor: go-executor
     steps:
       - checkout
+      - ci-tools/install-github-cli
       - restore_cache:
           keys:
             - v1-go-mod-{{ checksum "go.sum" }}
@@ -101,6 +108,15 @@ jobs:
       - store_artifacts:
           path: dist
           destination: templr-artifacts
+      
+      - run:
+          name: Post Artifact
+          command: |
+            if [[ "${CIRCLE_TAG}" != "" ]]; then
+              for f in .bin/*; do
+                gh -R "github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" release upload ${CIRCLE_TAG} "${f}" --clobber
+              done
+            fi
 
 workflows:
   version: 2
