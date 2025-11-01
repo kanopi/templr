@@ -62,8 +62,8 @@ jobs:
               LDFLAGS="-X main.Version=${CIRCLE_TAG}"
               VERSION="${CIRCLE_TAG}"
             else
-              LDFLAGS="-X main.GitBranch=${CIRCLE_BRANCH}"
-              VERSION="${CIRCLE_BRANCH}-dev"
+              LDFLAGS="-X main.Version=${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
+              VERSION="${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
             fi
 
             export GOFLAGS="-trimpath -buildmode=pie"

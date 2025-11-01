@@ -27,26 +27,10 @@ var (
 // getVersion returns a human-friendly version string.
 // Priority:
 //  1. Version (ldflags)
-//  2. CIRCLE_TAG env
-//  3. GitTag (ldflags)
-//  4. CIRCLE_BRANCH env + "-dev"
-//  5. GitBranch (ldflags) + "-dev"
-//  6. "dev"
+//  2. "dev"
 func getVersion() string {
 	if Version != "" {
 		return Version
-	}
-	if tag := os.Getenv("CIRCLE_TAG"); tag != "" {
-		return tag
-	}
-	if GitTag != "" {
-		return GitTag
-	}
-	if br := os.Getenv("CIRCLE_BRANCH"); br != "" {
-		return br + "-dev"
-	}
-	if GitBranch != "" {
-		return GitBranch + "-dev"
 	}
 	return "dev"
 }
