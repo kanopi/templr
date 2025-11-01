@@ -15,8 +15,5 @@ e2e: build
 golden: build
 	UPDATE_GOLDEN=1 tests/run_examples.sh
 
-test:
-	tests/run_examples.sh
-
 clean:
 	rm -rf .bin .out
