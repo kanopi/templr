@@ -118,6 +118,7 @@ jobs:
             fi
 
       - persist_to_workspace:
+          root: .
           paths:
             - .bin
 
@@ -125,7 +126,8 @@ jobs:
     executor: go-executor
     steps:
       - checkout
-      - attach_workspace
+      - attach_workspace:
+          at: .
       - setup_remote_docker
       - docker/check:
           arch: amd64
