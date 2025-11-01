@@ -122,7 +122,19 @@ workflows:
   version: 2
   test-and-build:
     jobs:
-      - test
+      - test:
+          context: kanopi-code
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
       - build:
+          context: kanopi-code
           requires:
             - test
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
