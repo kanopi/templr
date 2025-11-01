@@ -47,10 +47,11 @@ jobs:
             - v1-go-mod-{{ checksum "go.sum" }}
             - v1-go-mod-
       - run:
-          name: Build templr (multi-platform) with version + trimpath
+          name: Build templr (multi-platform) with version + PIE, archive, checksums
           command: |
             set -e
             mkdir -p .bin dist
+
             if [[ -n "${CIRCLE_TAG:-}" ]]; then
               LDFLAGS="-X main.Version=${CIRCLE_TAG}"
               VERSION="${CIRCLE_TAG}"
@@ -58,9 +59,10 @@ jobs:
               LDFLAGS="-X main.GitBranch=${CIRCLE_BRANCH}"
               VERSION="${CIRCLE_BRANCH}-dev"
             fi
-            export GOFLAGS="-trimpath"
 
-            # Linux (prefer dynamic glibc to avoid heuristic flags)
+            export GOFLAGS="-trimpath -buildmode=pie"
+
+            # Linux (dynamic glibc)
             GOOS=linux   GOARCH=amd64 go build -ldflags "$LDFLAGS" -o .bin/templr-linux-amd64 .
             GOOS=linux   GOARCH=arm64 go build -ldflags "$LDFLAGS" -o .bin/templr-linux-arm64 .
 
@@ -71,7 +73,7 @@ jobs:
             # Windows
             GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o .bin/templr-windows-amd64.exe .
 
-            # Package as zips (friendlier to scanners)
+            # Package as zips with docs
             for f in .bin/*; do
               base=$(basename "$f")
               zip -j "dist/${base}.zip" "$f" LICENSE README.md || zip -j "dist/${base}.zip" "$f"
