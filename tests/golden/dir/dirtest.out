@@ -1,0 +1,7 @@
+# #templr generated
+# Rendered for app=alpha
+
+image: busybox:latest
+tags:
+- dev
+- test
