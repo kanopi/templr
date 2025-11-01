@@ -1,9 +1,8 @@
-
-
 version: 2.1
 
 orbs:
   ci-tools: kanopi/ci-tools@2
+  docker: circleci/docker@3
 
 executors:
   go-executor:
@@ -118,6 +117,28 @@ jobs:
               done
             fi
 
+      - persist_to_workspace:
+          paths:
+            - .bin
+
+  build_docker:
+    executor: go-executor
+    steps:
+      - checkout
+      - attach_workspace
+      - setup_remote_docker
+      - docker/check:
+          arch: amd64
+          docker_username: DOCKERHUB_USER
+          docker_password: DOCKERHUB_PASS
+      - docker/check:
+          arch: arm64
+          docker_username: DOCKERHUB_USER
+          docker_password: DOCKERHUB_PASS
+      - run:
+          name: Build Multi Builder
+          command: make builder
+
 workflows:
   version: 2
   test-and-build:
@@ -133,6 +154,15 @@ workflows:
           context: kanopi-code
           requires:
             - test
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
+      - build_docker:
+          context: kanopi-code
+          requires:
+            - build
           filters:
             tags:
               only: /.*/
