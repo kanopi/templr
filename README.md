@@ -85,6 +85,27 @@ templr supports rendering templates in various modes and includes a full suite o
 
 By default, templr processes files ending in `.tpl`. You can extend this behavior with the `--ext` flag to include additional text-based extensions such as `md`, `txt`, `html`, etc. This allows you to use templr for Markdown, documentation, or configuration file templating.
 
+### Using stdin and stdout
+
+templr can also read templates from **stdin** and write output to **stdout**.
+
+If `-in` is not provided, templr reads the template from standard input.
+If `-out` is not provided, the rendered output is written to standard output.
+
+This enables templr to be used easily in pipelines or shell scripts.
+
+#### Examples
+
+```bash
+# Render from stdin
+echo 'Hello {{ .name }}' | templr -data values.yaml
+
+# Render to stdout
+templr -in template.tpl -data values.yaml > output.txt
+```
+
+This feature is especially useful when integrating templr into automated workflows or CI/CD pipelines.
+
 ### Common Command-line Flags
 
 - `-in`: A single template file (single-file mode) or an entry template name when used with `--dir`.
