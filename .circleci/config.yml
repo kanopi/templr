@@ -21,7 +21,7 @@ executors:
 
 jobs:
   lint:
-    executor: golang
+    executor: go-executor
     steps:
       - checkout
       - run:
