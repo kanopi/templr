@@ -1,0 +1,62 @@
+# .golangci.yml
+# Configuration for golangci-lint
+# See: https://golangci-lint.run/usage/configuration/
+
+version: "2"
+
+run:
+  timeout: 3m
+  tests: true
+  skip-dirs:
+    - vendor
+    - .git
+    - .out
+    - .bin
+    - tests/golden
+
+output:
+  format: colored-line-number
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - revive
+    - errcheck
+    - ineffassign
+    - misspell
+    - gocyclo
+    - dupl
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+
+linters-settings:
+  revive:
+    rules:
+      - name: indent-error-flow
+      - name: errorf
+      - name: exported
+        arguments: ["checkPrivateReceivers": false]
+      - name: empty-lines
+      - name: var-naming
+  gocyclo:
+    min-complexity: 15
+  dupl:
+    threshold: 80
+  misspell:
+    locale: US
+  gofumpt:
+    extra-rules: true
+
+issues:
+  exclude-use-default: false
+  exclude-rules:
+    - path: _test\.go
+      linters: [gocyclo, dupl]
+    - path: ^vendor/
+      linters: .*
+    - path: ^docs/
+      linters: [revive, misspell]

@@ -20,6 +20,19 @@ executors:
     working_directory: ~/project
 
 jobs:
+  lint:
+    executor: golang
+    steps:
+      - checkout
+      - run:
+          name: Install golangci-lint
+          command: |
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
+              | sh -s -- -b $(go env GOPATH)/bin v2.6.0
+      - run:
+          name: Run golangci-lint
+          command: |
+            golangci-lint run --timeout 5m
   test:
     executor: go-executor
     steps:
@@ -168,6 +181,12 @@ workflows:
   version: 2
   test-and-build:
     jobs:
+      - lint:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
       - test:
           context: kanopi-code
           filters:
@@ -179,6 +198,7 @@ workflows:
           context: kanopi-code
           requires:
             - test
+            - lint
           filters:
             tags:
               only: /.*/
