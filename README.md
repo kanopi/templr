@@ -14,21 +14,40 @@ templr is a Go-based templating CLI inspired by Helm and Go's `text/template` pa
 - **Dry-run**: Preview rendered output without writing files to disk using the `--dry-run` flag.
 - **Pruning empty directories**: Automatically detect and prune directories containing only whitespace or empty output.
 - **Flexible data input**: Pass data via `--set` flags or load from JSON/YAML files with `--data`.
+- **Custom extensions**: Use the `--ext` flag to include additional template file extensions (e.g., md, txt). `.tpl` is always included by default.
 
 ## Installation
 
-You can install templr using `go install`:
+### Download Latest Release
+
+Download the latest pre-built binary for your platform from the [GitHub Releases](https://github.com/kanopi/templr/releases) page. Extract the archive and place the `templr` binary in your system PATH.
+
+### Install via curl
+
+templr can be installed using a one-line command that downloads and installs the latest version automatically:
 
 ```bash
-go install github.com/kanopi/templr@latest
+curl -fsSL https://raw.githubusercontent.com/kanopi/templr/main/get-templr.sh | bash
 ```
 
-Alternatively, build from source:
+To install a specific version, specify the tag as an argument:
 
 ```bash
-git clone https://github.com/kanopi/templr.git
-cd templr
-go build -o templr main.go
+curl -fsSL https://raw.githubusercontent.com/kanopi/templr/main/get-templr.sh | bash -s 1.2.3
+```
+
+### Using Docker
+
+You can run templr using the official Docker image without installing anything locally:
+
+```bash
+docker run --rm -v $(pwd):/templates kanopi/templr -d /templates
+```
+
+Or to run a single template file:
+
+```bash
+docker run --rm -v $(pwd):/templates kanopi/templr -f /templates/template.tpl
 ```
 
 ## Usage and Scenarios
@@ -55,10 +74,20 @@ templr supports rendering templates in various modes and includes a full suite o
   templr --walk -d path/to/templates/
   ```
 
+  ```bash
+  templr --walk -d path/to/templates/ --ext md --ext txt
+  ```
+
+### Custom Template Extensions
+
+By default, templr processes files ending in `.tpl`. You can extend this behavior with the `--ext` flag to include additional text-based extensions such as `md`, `txt`, `html`, etc. This allows you to use templr for Markdown, documentation, or configuration file templating.
+
 ### Common Command-line Flags
 
 - `-f, --file`: Specify a single template file to render.
 - `-d, --dir`: Specify a directory containing templates.
+- `--src`: Source directory for templates when using `--walk` mode. templr will recursively search this directory for template files.
+- `--dst`: Destination directory where rendered templates will be written when using `--walk` mode.
 - `--walk`: Enable recursive walk mode for directory templates.
 - `--set key=value`: Set template data key-value pairs.
 - `--data path/to/data.yaml`: Load template data from a JSON or YAML file.
@@ -66,6 +95,7 @@ templr supports rendering templates in various modes and includes a full suite o
 - `--guard`: Enable guard behavior to conditionally skip rendering files.
 - `--dry-run`: Render templates without writing output to disk.
 - `--helpers`: Specify a glob pattern for helper templates (default: `_helpers*.tpl`). Set to an empty string to skip loading helpers in single-file mode.
+- `--ext`: Specify additional template file extensions to treat as templates (e.g., md, txt). Repeatable; omit the leading dot.
 - `--version`: Display the current version and exit.
 
 ### Versioning
@@ -106,7 +136,7 @@ make examples
 - **Walk mode**
 
   ```bash
-  templr -walk -src ./templates -dst ./out
+  templr --walk -src path/to/templates/ -dst path/to/output/
   ```
 
 - **Guard behavior**
@@ -149,4 +179,3 @@ For a full reference of templr’s templating syntax, variables, conditionals, f
 ## License
 
 This project is licensed under the [Your License Here]. See the LICENSE file for details.
-</file>
