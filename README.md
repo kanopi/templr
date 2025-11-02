@@ -41,13 +41,13 @@ curl -fsSL https://raw.githubusercontent.com/kanopi/templr/main/get-templr.sh | 
 You can run templr using the official Docker image without installing anything locally:
 
 ```bash
-docker run --rm -v $(pwd):/templates kanopi/templr -d /templates
+docker run --rm -v $(pwd):/work -w /work kanopi/templr --walk --src /work/templates --dst /work/out
 ```
 
 Or to run a single template file:
 
 ```bash
-docker run --rm -v $(pwd):/templates kanopi/templr -f /templates/template.tpl
+docker run --rm -v $(pwd):/work -w /work kanopi/templr -in /work/template.tpl -data /work/values.yaml -out /work/output.yaml
 ```
 
 ## Usage and Scenarios
@@ -59,23 +59,23 @@ templr supports rendering templates in various modes and includes a full suite o
 - **Single-file mode**: Render a single template file.
 
   ```bash
-  templr -f path/to/template.tmpl
+  templr -in path/to/template.tpl -data values.yaml -out output.txt
   ```
 
 - **Directory mode**: Render all templates in a directory.
 
   ```bash
-  templr -d path/to/templates/
+  templr -dir path/to/templates/ -in main.tpl -data values.yaml -out out.txt
   ```
 
 - **Walk mode**: Recursively walk through a directory and render all templates.
 
   ```bash
-  templr --walk -d path/to/templates/
+  templr --walk --src path/to/templates/ --dst path/to/output/
   ```
 
   ```bash
-  templr --walk -d path/to/templates/ --ext md --ext txt
+  templr --walk --src path/to/templates/ --dst path/to/output/ --ext md --ext txt
   ```
 
 ### Custom Template Extensions
@@ -84,8 +84,8 @@ By default, templr processes files ending in `.tpl`. You can extend this behavio
 
 ### Common Command-line Flags
 
-- `-f, --file`: Specify a single template file to render.
-- `-d, --dir`: Specify a directory containing templates.
+- `-in`: A single template file (single-file mode) or an entry template name when used with `--dir`.
+- `--dir`: Directory containing templates for multi-file rendering.
 - `--src`: Source directory for templates when using `--walk` mode. templr will recursively search this directory for template files.
 - `--dst`: Destination directory where rendered templates will be written when using `--walk` mode.
 - `--walk`: Enable recursive walk mode for directory templates.
@@ -169,7 +169,7 @@ These examples serve as integration tests to verify that all features of templr 
 
 ### Guard Behavior
 
-The `--guard` flag enables conditional rendering of templates. When enabled, templr evaluates the rendered output of a file and skips writing it if certain conditions are met (e.g., if the output is empty or does not meet criteria). This helps prevent overwriting files unnecessarily and improves rendering efficiency.
+The `--guard` flag controls **overwrite behavior** using a marker string (default `#templr generated`). When writing to an existing file, templr will only overwrite if the file already contains the marker. With `--inject-guard` (default `true`), templr inserts the marker in the correct comment style when creating or updating files.
 
 ### Dry Run
 
@@ -185,4 +185,4 @@ For a full reference of templr’s templating syntax, variables, conditionals, f
 
 ## License
 
-This project is licensed under the [Your License Here]. See the LICENSE file for details.
+This project is licensed under the [MIT License](./LICENSE). See the LICENSE file for details.
