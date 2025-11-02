@@ -82,7 +82,11 @@ if [ -n "$REQ_TAG" ]; then
     exit 1
   fi
 else
-  TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | grep -Po '"tag_name": "\K(.*)(?=")')
+  if command -v jq >/dev/null 2>&1; then
+    TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | jq -r '.tag_name // empty')
+  else
+    TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
+  fi
   if [ -z "$TAG" ]; then
     echo "❌ Failed to determine latest release tag." >&2
     exit 1
@@ -113,9 +117,15 @@ if [ "$OS" = "windows" ]; then
 fi
 
 if [ "$OS" = "windows" ]; then
-  sudo mv "${TMP_DIR}/templr.exe" "$DEST"
+  SRC_FILE="${TMP_DIR}/templr.exe"
 else
-  sudo mv "${TMP_DIR}/templr" "$DEST"
+  SRC_FILE="${TMP_DIR}/templr"
+fi
+
+if [ -w "$(dirname "$DEST")" ]; then
+  mv "$SRC_FILE" "$DEST"
+else
+  sudo mv "$SRC_FILE" "$DEST"
 fi
 
 echo "✅ templr ${TAG} installed to ${DEST}"

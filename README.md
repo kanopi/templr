@@ -107,23 +107,14 @@ templr -version
 ```
 
 The version is determined in this order:
-1. From build-time flags provided by CircleCI (`-ldflags "-X main.Version=<tag>"` or `-X main.GitBranch=<branch>`).
-2. From environment variables (`CIRCLE_TAG` or `CIRCLE_BRANCH`).
-3. Defaults to `dev` when not provided.
+1. From build-time flags provided by CircleCI (`-ldflags "-X main.Version=<tag>"`).
+2. Defaults to `dev` when not provided.
 
 This allows templr builds to display accurate version information when built from branches or tags.
 
 ### Examples & Testing
 
 templr includes a full suite of ready-made examples and integration tests to help you learn and verify functionality.
-
-#### Getting the Examples
-
-You can obtain the examples by downloading `templr_examples.zip` if it is distributed with the repository, or by running the following command if a Makefile or script is available:
-
-```bash
-make examples
-```
 
 #### Running Common Example Cases
 
@@ -142,6 +133,22 @@ make examples
 - **Guard behavior**
 
   Use pre-existing files containing or lacking the `#templr generated` marker to see how guard mode conditionally skips rendering.
+
+  The `--guard` flag controls the overwrite behavior of templr by using a marker string to determine whether a file should be overwritten. By default, this marker is `#templr generated`. When enabled, templr will only overwrite files that contain this marker, helping prevent accidental overwrites of manually edited files.
+
+  You can customize the guard string by passing a different value to the `--guard` flag:
+
+  ```bash
+  templr --guard "custom marker"
+  ```
+
+  Additionally, templr automatically inserts the guard marker into rendered files in the correct comment syntax for each file type when the `--inject-guard` flag is enabled (which is `true` by default). This ensures the guard marker is present without manual intervention.
+
+  If you prefer to disable automatic insertion of the guard marker, you can set:
+
+  ```bash
+  templr --inject-guard=false
+  ```
 
 - **Dry-run and pruning empty output**
 
