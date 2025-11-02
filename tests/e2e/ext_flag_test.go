@@ -12,9 +12,15 @@ func TestExtFlagInWalkMode(t *testing.T) {
 
 	src := filepath.Join(t.TempDir(), "src")
 	dst := filepath.Join(t.TempDir(), "dst")
-	if err := os.MkdirAll(src, 0o755); err != nil { t.Fatal(err) }
-	if err := os.WriteFile(filepath.Join(src, "README.md"), []byte("Title: {{ .title | default \"Docs\" }}\n"), 0o644); err != nil { t.Fatal(err) }
-	if err := os.WriteFile(filepath.Join(src, "values.yaml"), []byte("title: Handbook\n"), 0o644); err != nil { t.Fatal(err) }
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "README.md"), []byte("Title: {{ .title | default \"Docs\" }}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "values.yaml"), []byte("title: Handbook\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	_, stderr, err := run(t, bin, "--walk", "--src", src, "--dst", dst, "--ext", "md")
 	if err != nil {

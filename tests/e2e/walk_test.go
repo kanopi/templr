@@ -13,13 +13,23 @@ func TestWalkPruneEmpty(t *testing.T) {
 	src := filepath.Join(t.TempDir(), "src")
 	dst := filepath.Join(t.TempDir(), "dst")
 	// Make tree
-	if err := os.MkdirAll(filepath.Join(src, "example"), 0o755); err != nil { t.Fatal(err) }
-	if err := os.MkdirAll(filepath.Join(src, "example2"), 0o755); err != nil { t.Fatal(err) }
+	if err := os.MkdirAll(filepath.Join(src, "example"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(src, "example2"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	// One real file, one empty render, one absent render
-	if err := os.WriteFile(filepath.Join(src, "example", "test.tpl"), []byte("hello: world\n"), 0o644); err != nil { t.Fatal(err) }
-	if err := os.WriteFile(filepath.Join(src, "example", "test2.tpl"), []byte("{{- if .false }}never{{ end -}}\n"), 0o644); err != nil { t.Fatal(err) }
-	if err := os.WriteFile(filepath.Join(src, "example2", "test3.tpl"), []byte("{{- if .missing }}nope{{ end -}}\n"), 0o644); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(filepath.Join(src, "example", "test.tpl"), []byte("hello: world\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "example", "test2.tpl"), []byte("{{- if .false }}never{{ end -}}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "example2", "test3.tpl"), []byte("{{- if .missing }}nope{{ end -}}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	_, stderr, err := run(t, bin, "--walk", "--src", src, "--dst", dst)
 	if err != nil {
