@@ -1,5 +1,8 @@
 # templr
 
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/kanopi/templr/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/kanopi/templr/tree/main) [![Docker Pulls](https://img.shields.io/docker/pulls/kanopi/templr)](https://hub.docker.com/r/kanopi/templr) [![Latest Release](https://img.shields.io/github/v/release/kanopi/templr)](https://github.com/kanopi/templr/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
+
 ## Overview
 
 templr is a Go-based templating CLI inspired by Helm and Go's `text/template` package. It allows you to render templates from single files or entire directories, providing powerful features to manage complex templating workflows. templr is designed to be flexible and easy to use, making it ideal for generating configuration files, manifests, or any text-based output from templates.
