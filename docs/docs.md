@@ -1,5 +1,26 @@
 # Templr Templating Guide
 
+## Table of Contents
+1. [Variables and Data Access](#1-variables-and-data-access)
+2. [Control Flow](#2-control-flow)
+   - [Whitespace Control](#whitespace-control)
+   - [Conditionals](#conditionals)
+   - [Loops](#loops)
+3. [The .Files API](#3-the-files-api)
+4. [Helpers and Functions](#4-helpers-and-functions)
+5. [Data Precedence and Scoping](#5-data-precedence-and-scoping)
+   - [Default values.yaml and values.yml Lookup](#default-valuesyaml-and-valuesyml-lookup)
+6. [Advanced Capabilities and Sprig Functions](#6-advanced-capabilities-and-sprig-functions)
+7. [Helper Templates and Pre-Render Variables](#7-helper-templates-and-pre-render-variables)
+8. [Guards and Safe Access](#8-guards-and-safe-access)
+9. [Comments](#9-comments)
+10. [Putting It All Together](#10-putting-it-all-together)
+11. [Summary](#summary)
+
+---
+
+# Templr Templating Guide
+
 Welcome to the full guide for using **templr**, a powerful and flexible templating engine designed to simplify generating text files from templates. This document covers all the core concepts, syntax, and features you need to master templr.
 
 ---
