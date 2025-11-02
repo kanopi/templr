@@ -21,9 +21,7 @@ import (
 
 // Build-time variables (overridable via -ldflags)
 var (
-	Version   string // preferred explicit version (e.g., a tag)
-	GitTag    string // populated by CI when tagging builds
-	GitBranch string // populated by CI for branch builds
+	Version string // preferred explicit version (e.g., a tag)
 )
 
 // getVersion returns a human-friendly version string.
