@@ -131,6 +131,15 @@ pass "whitespace-only skip"
 # helpers pre-render
 run_and_diff "helpers/demo.txt"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/helpers_demo.tpl" -data "$EXAMPLES_DIR/helpers_values.yaml" -out "$OUT_DIR/helpers/demo.txt"
 
+# default-missing (global fallback)
+run_and_diff "missing/global.out.txt"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/default-missing/template.tpl" -data "$EXAMPLES_DIR/default-missing/values.yaml" --default-missing "N/A"
+
+# safe helper (per-variable fallback)
+run_and_diff "missing/safe.out.txt"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/safe-helper/tpl.tpl" -data "$EXAMPLES_DIR/safe-helper/values.yaml"
+
+# stdin -> stdout rendering (no -out): echo template and pipe into templr
+run_and_diff "stdin/out.txt" bash -lc "echo 'Hello {{ .name }}' | $BIN_DIR/templr -data $EXAMPLES_DIR/stdin-stdout/values.yaml"
+
 # guard injection placements
 run_and_diff "guards/shebang.sh"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/guards/shebang.sh.tpl" -out "$OUT_DIR/guards/shebang.sh"
 run_and_diff "guards/php.php"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/guards/php.tpl" -out "$OUT_DIR/guards/php.php"
