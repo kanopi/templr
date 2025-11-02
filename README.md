@@ -122,6 +122,30 @@ This feature is especially useful when integrating templr into automated workflo
 - `--ext`: Specify additional template file extensions to treat as templates (e.g., md, txt). Repeatable; omit the leading dot.
 - `--version`: Display the current version and exit.
 
+### 🧩 Additional Flags and Helpers
+
+| Flag / Helper | Description | Default |
+|----------------|-------------|----------|
+| `--default-missing` | String to render when a variable/key is missing (works with `missingkey=default`). | `<no value>` |
+| `safe` (template helper) | Template function usable inside templates: `{{ safe .var "fallback" }}` — renders a fallback when the variable is missing or empty. | N/A |
+
+#### Example Usage
+
+```bash
+# Render with a custom placeholder for missing values
+templr --in template.tpl --out output.txt --default-missing "N/A"
+
+# Example using the safe helper
+# template.tpl:
+# Name: {{ safe .user.name "anonymous" }}
+# Output:
+# Name: anonymous
+```
+
+💡 **Tip:**
+You can combine both behaviors — setting `--default-missing` for global fallback values while still using `safe` inside templates for specific variables.
+
+
 ### Versioning
 
 templr includes a built-in `-version` flag to display the current version of the binary.

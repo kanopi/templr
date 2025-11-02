@@ -271,6 +271,15 @@ func renderToBuffer(tpl *template.Template, name string, values map[string]any) 
 	return buf.Bytes(), nil
 }
 
+// applyDefaultMissing replaces the engine's "<no value>" placeholder with a configured string.
+// Used with template.Option("missingkey=default").
+func applyDefaultMissing(out []byte, replacement string) []byte {
+	if replacement == "" || replacement == "<no value>" {
+		return out
+	}
+	return bytes.ReplaceAll(out, []byte("<no value>"), []byte(replacement))
+}
+
 // canOverwrite checks guard when target exists.
 // If file doesn't exist → allowed. If exists → allowed only if guard is present.
 func canOverwrite(path, guard string) (bool, error) {
@@ -353,6 +362,7 @@ func main() { //nolint:gocyclo,cyclop
 	flag.Var(&extraExts, "ext", "Additional template file extensions to treat as templates (e.g., md, txt). Repeatable; do not include the leading dot.")
 
 	showVersion := flag.Bool("version", false, "Print version and exit")
+	defaultMissing := flag.String("default-missing", "<no value>", "String to render when a variable/key is missing (works with missingkey=default)")
 
 	flag.Parse()
 
@@ -462,6 +472,21 @@ func main() { //nolint:gocyclo,cyclop
 		}
 		return deepMerge(out, b)
 	}
+	// safe: render value or fallback when missing/empty
+	funcs["safe"] = func(v any, def string) string {
+		if v == nil {
+			return def
+		}
+		switch vv := v.(type) {
+		case string:
+			if strings.TrimSpace(vv) == "" {
+				return def
+			}
+			return vv
+		default:
+			return fmt.Sprint(v)
+		}
+	}
 
 	// Create template root with funcs & options
 	tpl = template.New("root").Funcs(funcs).Option("missingkey=default")
@@ -545,6 +570,9 @@ func main() { //nolint:gocyclo,cyclop
 				fmt.Fprintf(os.Stderr, "render error %s: %v\n", name, rerr)
 				os.Exit(1)
 			}
+			// apply global default-missing replacement
+			outBytes = applyDefaultMissing(outBytes, *defaultMissing)
+
 			if isEmpty(outBytes) {
 				if *dryRun {
 					fmt.Printf("[dry-run] skip empty %s (no file created)\n", dstPath)
@@ -684,6 +712,9 @@ func main() { //nolint:gocyclo,cyclop
 			fmt.Fprintln(os.Stderr, "render:", rerr)
 			os.Exit(1)
 		}
+		// apply global default-missing replacement
+		outBytes = applyDefaultMissing(outBytes, *defaultMissing)
+
 		if isEmpty(outBytes) {
 			target := "stdout"
 			if *out != "" {
@@ -847,6 +878,9 @@ func main() { //nolint:gocyclo,cyclop
 		fmt.Fprintln(os.Stderr, "render:", rerr)
 		os.Exit(1)
 	}
+	// apply global default-missing replacement
+	outBytes = applyDefaultMissing(outBytes, *defaultMissing)
+
 	if isEmpty(outBytes) {
 		target := "stdout"
 		if *out != "" {
