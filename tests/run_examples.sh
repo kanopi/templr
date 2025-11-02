@@ -11,17 +11,14 @@ info()  { echo -e "\033[1;34m[info]\033[0m $*"; }
 pass()  { echo -e "\033[1;32m[pass]\033[0m $*"; }
 fail()  { echo -e "\033[1;31m[fail]\033[0m $*"; exit 1; }
 
-normalize_paths() {
-  # Replace system-specific absolute paths with stable placeholders
-  sed -e "s|$ROOT|<ROOT>|g" \
-      -e "s|$OUT_DIR|<OUT>|g" \
-      -e "s|$EXAMPLES_DIR|<PLAY>|g"
-}
-
 mkdir -p "$BIN_DIR" "$OUT_DIR" "$GOLDEN_DIR"
 
 info "Building templr..."
 go build -o "$BIN_DIR/templr" ./ || fail "build failed"
+
+normalize_paths() {
+  sed -e "s|$ROOT|<ROOT>|g"       -e "s|$OUT_DIR|<OUT>|g"       -e "s|$EXAMPLES_DIR|<PLAY>|g"
+}
 
 run_and_diff() {
   local name="$1"; shift
@@ -75,7 +72,7 @@ info "Running scenarios..."
 # Single-file render
 run_and_diff "single/out.yaml"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/template.tpl" -data "$EXAMPLES_DIR/values.yaml" -out "$OUT_DIR/single/out.yaml"
 
-# Strict mode: should error, then succeed
+# Strict mode
 mkdir -p "$OUT_DIR/strict"
 set +e
 "$BIN_DIR/templr" -in "$EXAMPLES_DIR/strict.tpl" -strict -out "$OUT_DIR/strict/strict.yaml" 2> "$OUT_DIR/strict/err.txt"
@@ -87,7 +84,7 @@ fi
 set -e
 run_and_diff "strict/strict.yaml"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/strict.tpl" -strict -data "$EXAMPLES_DIR/vals.yaml" -out "$OUT_DIR/strict/strict.yaml"
 
-# Dir includes/partials
+# Dir mode
 run_and_diff "dir/dirtest.out"   "$BIN_DIR/templr" -dir "$EXAMPLES_DIR/dirtest" -in "$EXAMPLES_DIR/dirtest/main.tpl" -data "$EXAMPLES_DIR/dirtest/values.yaml" -out "$OUT_DIR/dir/dirtest.out"
 
 # Walk mode prune
@@ -103,7 +100,6 @@ rm -rf "$OUT_DIR/guard" && mkdir -p "$OUT_DIR/guard"
 printf "content: original\n" > "$OUT_DIR/guard/file.yaml"
 "$BIN_DIR/templr" -in "$EXAMPLES_DIR/guard/tpl.tpl" -out "$OUT_DIR/guard/file.yaml" || true
 grep -q "content: original" "$OUT_DIR/guard/file.yaml" || fail "guard overwrite should be skipped"
-
 printf "#templr generated\ncontent: original\n" > "$OUT_DIR/guard/file.yaml"
 "$BIN_DIR/templr" -in "$EXAMPLES_DIR/guard/tpl.tpl" -out "$OUT_DIR/guard/file.yaml"
 grep -q "content: updated" "$OUT_DIR/guard/file.yaml" || fail "guard overwrite should succeed"
@@ -170,16 +166,25 @@ pass "dry-run messaging"
 # stdout (no -out)
 run_and_diff "stdout/out.txt"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/stdout/out.tpl"
 
-# DEFAULTS: single-file (values.yaml adjacent)
+# DEFAULTS: single-file
 run_and_diff "defaults/sf.out.yaml"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/defaults_sf/template.tpl" -out "$OUT_DIR/defaults/sf.out.yaml"
 
-# DEFAULTS: dir mode (values.yaml in dir)
+# DEFAULTS: dir mode
 run_and_diff "defaults/dir.out.yaml"   "$BIN_DIR/templr" -dir "$EXAMPLES_DIR/defaults_dir" -in "$EXAMPLES_DIR/defaults_dir/main.tpl" -out "$OUT_DIR/defaults/dir.out.yaml"
 
-# DEFAULTS: walk mode (values.yaml in src root) -> two outputs
+# DEFAULTS: walk mode
 rm -rf "$OUT_DIR/defaults_walk"
 "$BIN_DIR/templr" -walk -src "$EXAMPLES_DIR/defaults_walk/templates" -dst "$OUT_DIR/defaults_walk/out"
 run_and_diff "defaults_walk/a" cat "$OUT_DIR/defaults_walk/out/a"
 run_and_diff "defaults_walk/b" cat "$OUT_DIR/defaults_walk/out/b"
+
+# EXTENSIONS: walk mode with -ext md -ext txt
+rm -rf "$OUT_DIR/ext_walk"
+"$BIN_DIR/templr" -walk -src "$EXAMPLES_DIR/ext_walk/templates" -dst "$OUT_DIR/ext_walk/out" -ext md -ext txt
+run_and_diff "ext_walk/README" cat "$OUT_DIR/ext_walk/out/README"
+run_and_diff "ext_walk/info" cat "$OUT_DIR/ext_walk/out/info"
+
+# EXTENSIONS: dir mode parse .md; render to .md
+run_and_diff "ext_dir/readme.md"   "$BIN_DIR/templr" -dir "$EXAMPLES_DIR/ext_dir" -in "$EXAMPLES_DIR/ext_dir/README.md" -out "$OUT_DIR/ext_dir/readme.md" -ext md
 
 pass "ALL TESTS PASSED"

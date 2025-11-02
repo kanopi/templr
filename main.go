@@ -174,9 +174,44 @@ func setByDottedKey(m map[string]any, dotted string, val any) {
 	}
 }
 
-// readAllTplsIntoSet parses every *.tpl under root into the given template set,
+// buildAllowedExts returns a set of allowed template extensions, always including ".tpl".
+// The inputs should be bare extensions without leading dots (e.g., "md", "txt").
+func buildAllowedExts(extra []string) map[string]bool {
+	m := map[string]bool{".tpl": true}
+	for _, e := range extra {
+		e = strings.TrimSpace(strings.ToLower(e))
+		if e == "" {
+			continue
+		}
+		if !strings.HasPrefix(e, ".") {
+			e = "." + e
+		}
+		m[e] = true
+	}
+	return m
+}
+
+// trimAnyExt removes the first matching extension from name based on allowExts.
+// If none match, returns name unchanged.
+func trimAnyExt(name string, allowExts map[string]bool) string {
+	lower := strings.ToLower(name)
+	// Prefer longer extensions first (e.g., .tpl.txt before .txt) if ever present
+	var exts []string
+	for e := range allowExts {
+		exts = append(exts, e)
+	}
+	sort.Slice(exts, func(i, j int) bool { return len(exts[i]) > len(exts[j]) })
+	for _, e := range exts {
+		if strings.HasSuffix(lower, e) {
+			return name[:len(name)-len(e)]
+		}
+	}
+	return name
+}
+
+// readAllTplsIntoSet parses every allowed template file under root into the given template set,
 // naming each template by its forward-slash relative path (to avoid base name collisions).
-func readAllTplsIntoSet(tpl *template.Template, root string) (*template.Template, []string, error) {
+func readAllTplsIntoSet(tpl *template.Template, root string, allowExts map[string]bool) (*template.Template, []string, error) {
 	var names []string
 	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -185,7 +220,8 @@ func readAllTplsIntoSet(tpl *template.Template, root string) (*template.Template
 		if d.IsDir() {
 			return nil
 		}
-		if !strings.HasSuffix(strings.ToLower(d.Name()), ".tpl") {
+		ext := strings.ToLower(filepath.Ext(d.Name()))
+		if !allowExts[ext] {
 			return nil
 		}
 		rel, err := filepath.Rel(root, p)
@@ -310,6 +346,8 @@ func main() {
 	guard := flag.String("guard", "#templr generated", "Guard string required in existing files to allow overwrite")
 	inject := flag.Bool("inject-guard", true, "Automatically insert the guard as a comment into written files (when supported)")
 	helpers := flag.String("helpers", "_helpers*.tpl", "Glob pattern of helper templates to load (single-file mode). Set empty to skip.")
+	var extraExts stringSlice
+	flag.Var(&extraExts, "ext", "Additional template file extensions to treat as templates (e.g., md, txt). Repeatable; do not include the leading dot.")
 
 	showVersion := flag.Bool("version", false, "Print version and exit")
 
@@ -476,8 +514,9 @@ func main() {
 		values["Files"] = FilesAPI{Root: absSrc}
 
 		// Parse ALL templates (so includes/partials are available)
+		allowExts := buildAllowedExts(extraExts)
 		var names []string
-		tpl, names, err = readAllTplsIntoSet(tpl, absSrc)
+		tpl, names, err = readAllTplsIntoSet(tpl, absSrc, allowExts)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "parse tree:", err)
 			os.Exit(1)
@@ -494,7 +533,7 @@ func main() {
 			if !shouldRender(name) {
 				continue
 			}
-			relOut := strings.TrimSuffix(name, ".tpl")
+			relOut := trimAnyExt(name, allowExts)
 			dstPath := filepath.Join(absDst, filepath.FromSlash(relOut))
 
 			// render to buffer first
@@ -601,8 +640,9 @@ func main() {
 		values["Files"] = FilesAPI{Root: absDir}
 
 		// Parse all *.tpl in dir using path-based names
+		allowExts := buildAllowedExts(extraExts)
 		var names []string
-		tpl, names, err = readAllTplsIntoSet(tpl, absDir)
+		tpl, names, err = readAllTplsIntoSet(tpl, absDir, allowExts)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "parse dir templates:", err)
 			os.Exit(1)
