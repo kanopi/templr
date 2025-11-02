@@ -161,7 +161,7 @@ jobs:
             - docker/build:
                 attach_at: .
                 image: *DOCKER_IMAGE
-                tag: "<< pipeline.git.tag >>"
+                tag: "<< pipeline.git.tag >>,latest"
                 extra_build_args: "--platform linux/amd64,linux/arm64 --push"
 
 workflows:
