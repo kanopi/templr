@@ -33,6 +33,14 @@ jobs:
           name: Run golangci-lint
           command: |
             golangci-lint run --timeout 5m
+  unit:
+    executor: go-executor
+    steps:
+      - checkout
+      - run:
+          name: Run unit tests
+          command: |
+            go test ./tests/...
   test:
     executor: go-executor
     steps:
@@ -187,6 +195,12 @@ workflows:
               only: /.*/
             branches:
               only: /.*/
+      - unit:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
       - test:
           context: kanopi-code
           filters:
@@ -199,6 +213,7 @@ workflows:
           requires:
             - test
             - lint
+            - unit
           filters:
             tags:
               only: /.*/
