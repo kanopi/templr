@@ -85,3 +85,22 @@ vuln:
 	govulncheck ./...
 
 check: fmt vet lint vuln
+
+.PHONY: web web-serve
+
+GOROOT_WASM := $(shell go env GOROOT)/lib/wasm/wasm_exec.js
+
+check-wasm-exec:
+	@test -f "$(GOROOT_WASM)" || { \
+	  echo "Error: cannot find wasm_exec.js at $(GOROOT_WASM)"; \
+	  echo "Ensure Go is installed correctly."; \
+	  exit 1; \
+	}
+
+web: check-wasm-exec
+	@mkdir -p web
+	@cp "$(GOROOT_WASM)" web/wasm_exec.js
+	GOOS=js GOARCH=wasm go build -o web/templr.wasm ./wasm/cmd/play
+
+web-serve: web
+	python3 -m http.server -d web 8080

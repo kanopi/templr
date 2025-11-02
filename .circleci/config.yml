@@ -151,6 +151,10 @@ jobs:
                   for f in .bin/templr*; do
                     gh -R "github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" release upload ${CIRCLE_TAG} "${f}" --clobber
                   done
+            - run:
+                name: Build Web Playground
+                command: |
+                  bash ./deploy.sh
   
   build_docker:
     executor: go-executor

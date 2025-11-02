@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>templr playground</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>templr playground</h1>
+    <p>Test templates, values, helpers, <code>--default-missing</code>, strict mode, and <code>.Files</code> uploads — all in your browser.</p>
+  </header>
+
+  <main>
+    <section class="pane">
+      <label>Template</label>
+      <textarea id="template" placeholder='Hello {{ .name | default "world" }}'></textarea>
+
+      <label>Values (YAML or JSON)</label>
+      <textarea id="values" placeholder="name: templr"></textarea>
+
+      <label>Helpers (_helpers*.tpl)</label>
+      <textarea id="helpers" placeholder='{{ define "shout" }}{{ upper . }}{{ end }}'></textarea>
+
+      <div class="row">
+        <label><input type="checkbox" id="strict"> Strict mode</label>
+        <label>Default missing <input id="dm" value="&lt;no value&gt;" /></label>
+        <label><input type="checkbox" id="injectGuard"> Inject guard</label>
+        <label>Guard marker <input id="guardMarker" value="#templr generated" /></label>
+      </div>
+
+      <label>.Files bundle (.zip) — optional</label>
+      <input type="file" id="zip" accept=".zip" />
+    </section>
+
+    <section class="pane">
+      <div class="row">
+        <button id="render">Render</button>
+        <button id="sample">Load sample</button>
+      </div>
+      <label>Output</label>
+      <textarea id="output" readonly></textarea>
+    </section>
+  </main>
+
+  <script src="wasm_exec.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -31,3 +31,9 @@
 *.dylib
 
 /templr-testbin
+
+# Web Related Items
+/web/templr.wasm
+/web/wasm_exec.js
+
+/public
