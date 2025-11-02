@@ -34,7 +34,45 @@ If your data is:
 
 ---
 
+
 ## 2. Control Flow
+
+### Whitespace Control
+
+Go templates (and templr) provide control over whitespace using hyphens within delimiters. This determines how spaces and newlines around template actions are handled.
+
+| Syntax | Effect |
+|---------|--------|
+| `{{ variable }}` | Keeps surrounding whitespace (default). |
+| `{{- variable }}` | Trims whitespace **to the left** of the action. |
+| `{{ variable -}}` | Trims whitespace **to the right** of the action. |
+| `{{- variable -}}` | Trims whitespace on **both sides** of the action. |
+
+#### Example
+
+```gotmpl
+Hello,
+{{- if .Name }}
+  {{ .Name }}
+{{- end }}
+!
+```
+
+If `.Name` is `"Sean"`, this renders as:
+
+```
+Hello,Moto!
+```
+
+Without the hyphens, it renders as:
+
+```
+Hello,
+  Moto
+!
+```
+
+Whitespace control is especially useful when generating Markdown, YAML, or HTML templates, where extra or missing line breaks can change formatting or validity.
 
 ### Conditionals
 
