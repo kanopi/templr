@@ -1,8 +1,10 @@
+// Package main implements the templr CLI tool for rendering text templates with data and helpers.
 package main
 
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -81,7 +83,9 @@ func loadData(path string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	var m map[string]any
 	ext := strings.ToLower(filepath.Ext(path))
@@ -271,7 +275,7 @@ func renderToBuffer(tpl *template.Template, name string, values map[string]any) 
 
 // canOverwrite checks guard when target exists.
 // If file doesn't exist → allowed. If exists → allowed only if guard is present.
-func canOverwrite(path string, guard string) (bool, error) {
+func canOverwrite(path, guard string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -321,7 +325,8 @@ func pruneEmptyDirs(root string) error {
 	return nil
 }
 
-func main() {
+//nolint:gocyclo,cyclop // main orchestrates CLI flow; complexity is acceptable here.
+func main() { //nolint:gocyclo,cyclop
 	// Modes:
 	//  - Single file: [-in FILE] [-out FILE] (stdin/stdout if omitted)
 	//  - Multi-file (execute one entry): -dir DIR [-in ENTRY or define "root"] [-out FILE]
@@ -417,23 +422,23 @@ func main() {
 	funcs["required"] = func(msg string, v any) (any, error) {
 		switch x := v.(type) {
 		case nil:
-			return nil, fmt.Errorf(msg)
+			return nil, errors.New(msg)
 		case string:
 			if strings.TrimSpace(x) == "" {
-				return nil, fmt.Errorf(msg)
+				return nil, errors.New(msg)
 			}
 		case []any:
 			if len(x) == 0 {
-				return nil, fmt.Errorf(msg)
+				return nil, errors.New(msg)
 			}
 		case map[string]any:
 			if len(x) == 0 {
-				return nil, fmt.Errorf(msg)
+				return nil, errors.New(msg)
 			}
 		}
 		return v, nil
 	}
-	funcs["fail"] = func(msg string) (string, error) { return "", fmt.Errorf(msg) }
+	funcs["fail"] = func(msg string) (string, error) { return "", errors.New(msg) }
 
 	// set: mutate a map with key=value and return it (useful for introducing new vars)
 	funcs["set"] = func(m map[string]any, key string, val any) (map[string]any, error) {
@@ -478,19 +483,19 @@ func main() {
 
 		// Build values: defaults (values.yaml) → -data → -f → --set
 		values = map[string]any{}
-		if def, derr := loadDefaultValues(absSrc); derr != nil {
+		def, derr := loadDefaultValues(absSrc)
+		if derr != nil {
 			fmt.Fprintln(os.Stderr, "load default values:", derr)
 			os.Exit(1)
-		} else {
-			values = deepMerge(values, def)
 		}
+		values = deepMerge(values, def)
 		if *data != "" {
-			if add, err := loadData(*data); err != nil {
+			add, err := loadData(*data)
+			if err != nil {
 				fmt.Fprintln(os.Stderr, "load data:", err)
 				os.Exit(1)
-			} else {
-				values = deepMerge(values, add)
 			}
+			values = deepMerge(values, add)
 		}
 		for _, f := range files {
 			add, err := loadData(f)
@@ -605,19 +610,19 @@ func main() {
 		absDir, _ := filepath.Abs(*dir)
 		// Build values: defaults (values.yaml) → -data → -f → --set
 		values = map[string]any{}
-		if def, derr := loadDefaultValues(absDir); derr != nil {
+		def, derr := loadDefaultValues(absDir)
+		if derr != nil {
 			fmt.Fprintln(os.Stderr, "load default values:", derr)
 			os.Exit(1)
-		} else {
-			values = deepMerge(values, def)
 		}
+		values = deepMerge(values, def)
 		if *data != "" {
-			if add, err := loadData(*data); err != nil {
+			add, err := loadData(*data)
+			if err != nil {
 				fmt.Fprintln(os.Stderr, "load data:", err)
 				os.Exit(1)
-			} else {
-				values = deepMerge(values, add)
 			}
+			values = deepMerge(values, add)
 		}
 		for _, f := range files {
 			add, err := loadData(f)
@@ -762,19 +767,19 @@ func main() {
 	}
 	// Build values: defaults (values.yaml) → -data → -f → --set
 	values = map[string]any{}
-	if def, derr := loadDefaultValues(filesRoot); derr != nil {
+	def, derr := loadDefaultValues(filesRoot)
+	if derr != nil {
 		fmt.Fprintln(os.Stderr, "load default values:", derr)
 		os.Exit(1)
-	} else {
-		values = deepMerge(values, def)
 	}
+	values = deepMerge(values, def)
 	if *data != "" {
-		if add, err := loadData(*data); err != nil {
+		add, err := loadData(*data)
+		if err != nil {
 			fmt.Fprintln(os.Stderr, "load data:", err)
 			os.Exit(1)
-		} else {
-			values = deepMerge(values, add)
 		}
+		values = deepMerge(values, add)
 	}
 	for _, f := range files {
 		add, err := loadData(f)
@@ -980,8 +985,8 @@ func injectGuardForExt(path string, content []byte, guard string) []byte {
 	addLineTop := func(prefix string) []byte {
 		return []byte(prefix + guard + "\n" + string(content))
 	}
-	addBlockTop := func(open, close string) []byte {
-		return []byte(open + " " + guard + " " + close + "\n" + string(content))
+	addBlockTop := func(open, closeToken string) []byte {
+		return []byte(open + " " + guard + " " + closeToken + "\n" + string(content))
 	}
 	addAfterShebang := func(prefix string) []byte {
 		// split first line

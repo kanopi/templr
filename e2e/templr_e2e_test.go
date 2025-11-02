@@ -41,7 +41,7 @@ func TestGuard(t *testing.T) {
 	target := filepath.Join(tmp, "file.yaml")
 
 	// No guard present -> skip overwrite
-	if err := os.WriteFile(target, []byte("content: original\n"), 0644); err != nil {
+	if err := os.WriteFile(target, []byte("content: original\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(bin, "-in", "playground/guard/tpl.tpl", "-out", target)
@@ -52,7 +52,7 @@ func TestGuard(t *testing.T) {
 	}
 
 	// Add guard -> overwrite succeeds
-	if err := os.WriteFile(target, []byte("#templr generated\ncontent: original\n"), 0644); err != nil {
+	if err := os.WriteFile(target, []byte("#templr generated\ncontent: original\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cmd = exec.Command(bin, "-in", "playground/guard/tpl.tpl", "-out", target)
