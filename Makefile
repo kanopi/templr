@@ -68,3 +68,20 @@ docker: build-linux
 
 dockerx: docker builder
 	docker buildx build --platform $(PLATFORMS) --tag $(IMAGE):latest .
+
+.PHONY: fmt lint vet vuln
+
+fmt:
+	gofumpt -w -extra .
+	goimports -w .
+
+lint:
+	golangci-lint run
+
+vet:
+	go vet ./...
+
+vuln:
+	govulncheck ./...
+
+check: fmt vet lint vuln
