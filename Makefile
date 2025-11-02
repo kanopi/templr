@@ -23,7 +23,7 @@ build:
 	go build -o $(BIN) .
 
 test: build
-	go test ./e2e -v || true
+	go test ./tests/...
 
 e2e: build
 	chmod +x tests/run_examples.sh
