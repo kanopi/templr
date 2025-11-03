@@ -375,6 +375,87 @@ func pruneEmptyDirs(root string) error {
 	return nil
 }
 
+// fastEqual reports true if existing file at path has the same bytes as newBytes.
+// It avoids loading both into memory when sizes differ (fast path optimization).
+func fastEqual(path string, newBytes []byte) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	// Quick size check (fast path - no file read needed)
+	if int64(len(newBytes)) != info.Size() {
+		return false, nil
+	}
+
+	// Same size: read and compare bytes
+	old, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+
+	return bytes.Equal(old, newBytes), nil
+}
+
+// writeIfChanged writes newBytes to path only if content differs from existing file.
+// Uses atomic write (tmp file + rename) to prevent partial writes on crash/interrupt.
+// Returns (changed bool, error).
+func writeIfChanged(path string, newBytes []byte, mode os.FileMode) (bool, error) {
+	// Check if content is the same
+	same, err := fastEqual(path, newBytes)
+	if err != nil {
+		return false, err
+	}
+	if same {
+		return false, nil // No change needed
+	}
+
+	// Content differs - perform atomic write
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return false, err
+	}
+
+	// Create temp file in same directory (ensures same filesystem for atomic rename)
+	f, err := os.CreateTemp(dir, ".templr-*")
+	if err != nil {
+		return false, err
+	}
+	tmp := f.Name()
+	defer func() { _ = os.Remove(tmp) }() // Cleanup on failure
+
+	// Write to temp file
+	if _, err := f.Write(newBytes); err != nil {
+		_ = f.Close()
+		return false, err
+	}
+
+	// Sync to disk (durability)
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return false, err
+	}
+
+	if err := f.Close(); err != nil {
+		return false, err
+	}
+
+	// Set permissions
+	if err := os.Chmod(tmp, mode); err != nil {
+		return false, err
+	}
+
+	// Atomic rename (only visible point of update)
+	if err := os.Rename(tmp, path); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 //nolint:gocyclo,cyclop // main orchestrates CLI flow; complexity is acceptable here.
 func main() { //nolint:gocyclo,cyclop
 	// Modes:
@@ -640,7 +721,13 @@ func main() { //nolint:gocyclo,cyclop
 						fmt.Printf("[dry-run] would inject guard into %s\n", dstPath)
 					}
 				}
-				fmt.Printf("[dry-run] would render %s -> %s\n", name, dstPath)
+				// Check if file would change
+				same, _ := fastEqual(dstPath, simulated)
+				if same {
+					fmt.Printf("[dry-run] would skip unchanged %s\n", dstPath)
+				} else {
+					fmt.Printf("[dry-run] would render %s -> %s (changed)\n", name, dstPath)
+				}
 				continue
 			}
 
@@ -648,14 +735,14 @@ func main() { //nolint:gocyclo,cyclop
 			if *inject {
 				outBytes = injectGuardForExt(dstPath, outBytes, *guard)
 			}
-			// Only now create directory and write
-			if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
-				errf(ExitGeneral, "io", "mkdir %s: %v", dstPath, err)
-			}
-			if err := os.WriteFile(dstPath, outBytes, 0o644); err != nil {
+			// Write only if content changed
+			changed, err := writeIfChanged(dstPath, outBytes, 0o644)
+			if err != nil {
 				errf(ExitGeneral, "write", "write %s: %v", dstPath, err)
 			}
-			fmt.Printf("rendered %s -> %s\n", name, dstPath)
+			if changed {
+				fmt.Printf("rendered %s -> %s\n", name, dstPath)
+			}
 		}
 
 		// Cleanup: remove empty directories under dst
@@ -785,7 +872,21 @@ func main() { //nolint:gocyclo,cyclop
 					fmt.Printf("[dry-run] would inject guard into %s\n", *out)
 				}
 			}
-			fmt.Printf("[dry-run] would render entry %s -> %s\n", entryName, target)
+			// Check if file would change
+			if *out != "" {
+				simToCheck := outBytes
+				if *inject {
+					simToCheck = injectGuardForExt(*out, outBytes, *guard)
+				}
+				same, _ := fastEqual(*out, simToCheck)
+				if same {
+					fmt.Printf("[dry-run] would skip unchanged %s\n", *out)
+				} else {
+					fmt.Printf("[dry-run] would render entry %s -> %s (changed)\n", entryName, target)
+				}
+			} else {
+				fmt.Printf("[dry-run] would render entry %s -> %s\n", entryName, target)
+			}
 			return
 		}
 
@@ -796,11 +897,13 @@ func main() { //nolint:gocyclo,cyclop
 			if *inject {
 				outBytes = injectGuardForExt(*out, outBytes, *guard)
 			}
-			if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
-				errf(ExitGeneral, "io", "mkdir out dir: %v", err)
-			}
-			if err := os.WriteFile(*out, outBytes, 0o644); err != nil {
+			// Write only if content changed
+			changed, err := writeIfChanged(*out, outBytes, 0o644)
+			if err != nil {
 				errf(ExitGeneral, "write", "write out: %v", err)
+			}
+			if changed {
+				fmt.Printf("rendered entry %s -> %s\n", entryName, *out)
 			}
 			return
 		}
@@ -948,7 +1051,21 @@ func main() { //nolint:gocyclo,cyclop
 				fmt.Printf("[dry-run] would inject guard into %s\n", *out)
 			}
 		}
-		fmt.Printf("[dry-run] would render %s -> %s\n", srcLabel, target)
+		// Check if file would change
+		if *out != "" {
+			simToCheck := outBytes
+			if *inject {
+				simToCheck = injectGuardForExt(*out, outBytes, *guard)
+			}
+			same, _ := fastEqual(*out, simToCheck)
+			if same {
+				fmt.Printf("[dry-run] would skip unchanged %s\n", *out)
+			} else {
+				fmt.Printf("[dry-run] would render %s -> %s (changed)\n", srcLabel, target)
+			}
+		} else {
+			fmt.Printf("[dry-run] would render %s -> %s\n", srcLabel, target)
+		}
 		return
 	}
 
@@ -958,11 +1075,17 @@ func main() { //nolint:gocyclo,cyclop
 		if *inject {
 			outBytes = injectGuardForExt(*out, outBytes, *guard)
 		}
-		if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
-			errf(ExitGeneral, "io", "mkdir out dir: %v", err)
-		}
-		if err := os.WriteFile(*out, outBytes, 0o644); err != nil {
+		// Write only if content changed
+		changed, err := writeIfChanged(*out, outBytes, 0o644)
+		if err != nil {
 			errf(ExitGeneral, "write", "write out: %v", err)
+		}
+		if changed {
+			srcLabel := "stdin"
+			if *in != "" {
+				srcLabel = *in
+			}
+			fmt.Printf("rendered %s -> %s\n", srcLabel, *out)
 		}
 		return
 	}

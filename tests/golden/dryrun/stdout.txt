@@ -1,2 +1,2 @@
 [dry-run] would inject guard into <ROOT>/.out/dryrun/preview.txt
-[dry-run] would render <ROOT>/playground/dryrun/basic.tpl -> <ROOT>/.out/dryrun/preview.txt
+[dry-run] would render <ROOT>/playground/dryrun/basic.tpl -> <ROOT>/.out/dryrun/preview.txt (changed)
