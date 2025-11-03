@@ -12,11 +12,11 @@ func TestEmptyOutputSkipping(t *testing.T) {
 	bin := buildTemplr(t, start)
 
 	tests := []struct {
-		name           string
-		template       string
-		data           string
-		shouldSkip     bool
-		expectStderr   string
+		name         string
+		template     string
+		data         string
+		shouldSkip   bool
+		expectStderr string
 	}{
 		{
 			name:         "only ASCII spaces",
@@ -43,10 +43,10 @@ func TestEmptyOutputSkipping(t *testing.T) {
 			expectStderr: "skipping empty render",
 		},
 		{
-			name:         "template with empty variable (using --default-missing)",
-			template:     "{{ .missing }}",
-			data:         "",
-			shouldSkip:   false, // Without --default-missing "", this produces "<no value>"
+			name:       "template with empty variable (using --default-missing)",
+			template:   "{{ .missing }}",
+			data:       "",
+			shouldSkip: false, // Without --default-missing "", this produces "<no value>"
 		},
 		{
 			name:         "template producing only whitespace from conditionals",
@@ -253,8 +253,8 @@ enabled: true
 			shouldSkip: true,
 		},
 		{
-			name: "only template comments",
-			template: `{{/* comment 1 */}}{{/* comment 2 */}}`,
+			name:       "only template comments",
+			template:   `{{/* comment 1 */}}{{/* comment 2 */}}`,
 			data:       "",
 			shouldSkip: true, // Template produces only empty output
 		},
