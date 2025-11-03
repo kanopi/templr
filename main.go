@@ -324,6 +324,7 @@ func applyDefaultMissing(out []byte, replacement string) []byte {
 
 // canOverwrite checks guard when target exists.
 // If file doesn't exist → allowed. If exists → allowed only if guard is present.
+// Uses flexible guard detection that accounts for different comment styles per language.
 func canOverwrite(path, guard string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -339,7 +340,7 @@ func canOverwrite(path, guard string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return bytes.Contains(b, []byte(guard)), nil
+	return hasGuardFlexible(path, b, guard), nil
 }
 
 // pruneEmptyDirs removes empty directories under root (bottom-up).
@@ -990,9 +991,68 @@ func loadDefaultValues(baseDir string) (map[string]any, error) {
 	return out, nil
 }
 
-// hasGuard checks if content already contains the guard string.
-func hasGuard(content []byte, guard string) bool {
-	return bytes.Contains(content, []byte(guard))
+// normalize strips UTF-8 BOM and converts CRLF to LF for consistent processing.
+func normalize(content []byte) []byte {
+	// Strip UTF-8 BOM if present
+	if len(content) >= 3 && content[0] == 0xEF && content[1] == 0xBB && content[2] == 0xBF {
+		content = content[3:]
+	}
+	// Normalize CRLF -> LF
+	return bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+}
+
+// hasGuardFlexible checks if content contains the guard marker in a format
+// appropriate for the file type. This mirrors the injection logic in injectGuardForExt.
+func hasGuardFlexible(path string, content []byte, marker string) bool {
+	// Normalize content (strip BOM, normalize line endings)
+	b := normalize(content)
+
+	base := strings.ToLower(filepath.Base(path))
+	ext := strings.ToLower(filepath.Ext(path))
+
+	// JSON: no comment support by default
+	if ext == ".json" {
+		// Fallback: check for raw marker (rare case)
+		return bytes.Contains(b, []byte(marker))
+	}
+
+	// Build candidate patterns based on file type
+	candidates := []string{marker} // raw marker as fallback
+
+	switch {
+	case base == "dockerfile":
+		candidates = append(candidates, "# "+marker, "#"+marker)
+
+	case ext == ".php" || ext == ".phtml":
+		candidates = append(candidates,
+			"// "+marker, "//"+marker,
+			"<?php // "+marker+" ?>")
+
+	case ext == ".css" || ext == ".scss":
+		candidates = append(candidates, "/* "+marker+" */")
+
+	case ext == ".html" || ext == ".htm" || ext == ".xml" || ext == ".md":
+		candidates = append(candidates, "<!-- "+marker+" -->")
+
+	case ext == ".sh" || ext == ".bash" || ext == ".zsh" || ext == ".env" ||
+		ext == ".yml" || ext == ".yaml" || ext == ".toml" ||
+		ext == ".ini" || ext == ".conf" ||
+		ext == ".py" || ext == ".rb":
+		candidates = append(candidates, "# "+marker, "#"+marker)
+
+	default:
+		// C-style languages: .js, .ts, .go, .java, .kt, .c, .cpp, .rs, etc.
+		candidates = append(candidates, "// "+marker, "//"+marker)
+	}
+
+	// Check if any candidate is present
+	for _, cand := range candidates {
+		if bytes.Contains(b, []byte(cand)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isShebang reports if content starts with a #! shebang.
@@ -1010,7 +1070,7 @@ func isShebang(content []byte) bool {
 // injectGuardForExt injects guard into content using a style determined by file path and content.
 // Returns possibly-modified content. If injection is unsafe (e.g., JSON), returns original content.
 func injectGuardForExt(path string, content []byte, guard string) []byte {
-	if len(guard) == 0 || hasGuard(content, guard) {
+	if len(guard) == 0 || hasGuardFlexible(path, content, guard) {
 		return content
 	}
 
