@@ -90,108 +90,56 @@ jobs:
     executor: go-executor
     steps:
       - checkout
-      - ci-tools/install-github-cli
       - restore_cache:
           keys:
             - v1-go-mod-{{ checksum "go.sum" }}
             - v1-go-mod-
       - run:
-          name: Build templr (multi-platform) with version + PIE, archive, checksums
+          name: Install GoReleaser
           command: |
-            set -e
-            mkdir -p .bin dist
-
-            if [[ -n "${CIRCLE_TAG:-}" ]]; then
-              LDFLAGS="-X main.Version=${CIRCLE_TAG}"
-              VERSION="${CIRCLE_TAG}"
-            else
-              LDFLAGS="-X main.Version=${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
-              VERSION="${CIRCLE_BRANCH}-${CIRCLE_SHA1:0:7}"
-            fi
-
-            export GOFLAGS="-trimpath -buildmode=pie"
-
-            # Linux (dynamic glibc)
-            GOOS=linux   GOARCH=amd64 go build -ldflags "$LDFLAGS" -o .bin/templr-linux-amd64 .
-            GOOS=linux   GOARCH=arm64 go build -ldflags "$LDFLAGS" -o .bin/templr-linux-arm64 .
-
-            # macOS
-            GOOS=darwin  GOARCH=amd64 go build -ldflags "$LDFLAGS" -o .bin/templr-darwin-amd64 .
-            GOOS=darwin  GOARCH=arm64 go build -ldflags "$LDFLAGS" -o .bin/templr-darwin-arm64 .
-
-            # Windows
-            GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o .bin/templr-windows-amd64.exe .
-
-            # Package as zips with docs
-            for f in .bin/*; do
-              base=$(basename "$f")
-              zip -j "dist/${base}.zip" "$f" LICENSE README.md || zip -j "dist/${base}.zip" "$f"
-            done
-
-            # Checksums
-            (cd dist && sha256sum * > SHA256SUMS)
-
-      # (Optional) SBOM (requires anchore/syft pre-installed or add a setup step)
+            curl -sfL https://goreleaser.com/static/run | bash -s -- check
+            curl -sL https://git.io/goreleaser | bash -s -- --version
+      - setup_remote_docker:
+          version: 20.10.24
       - run:
-          name: Generate SBOM (syft)
+          name: Docker Login
           command: |
-            curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b .bin
-            for z in dist/*.zip; do
-              .bin/syft packages file:"$z" -o spdx-json > "${z%.zip}.spdx.json" || true
-            done
-
-      # (Optional) Cosign signatures (requires keys/secrets)
+            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
       - run:
-          name: Sign checksums with cosign
+          name: Setup Docker Buildx
           command: |
-            # cosign sign-blob --key $COSIGN_KEY dist/SHA256SUMS > dist/SHA256SUMS.sig
-            echo "Add cosign signing here if keys are available"
-
-      - store_artifacts:
-          path: dist
-          destination: templr-artifacts
-
-      - setup_remote_docker
-
-      - docker/check:
-          <<: *DOCKER_CREDS
-          arch: amd64
-
-      - docker/check:
-          <<: *DOCKER_CREDS
-          arch: arm64
-
-      - run:
-          name: Build Multi Builder
-          command: make builder
-
+            docker buildx create --name multiarch --driver docker-container --use --bootstrap || true
+            docker buildx inspect multiarch
+            docker run --privileged --rm tonistiigi/binfmt --install arm64,amd64
       - when:
           condition:
             equal: ["", << pipeline.git.tag >>]
           steps:
-            - docker/build:
-                image: *DOCKER_IMAGE
-                tag: "build-$(echo \"${CIRCLE_BRANCH}\" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd 'a-z0-9_.-')"
-                extra_build_args: "--platform linux/amd64,linux/arm64 --push"
-
+            - run:
+                name: Build Snapshot (Branch Build)
+                command: |
+                  curl -sL https://git.io/goreleaser | bash -s -- build --snapshot --clean
+            - store_artifacts:
+                path: dist
+                destination: templr-artifacts
       - unless:
           condition:
             equal: ["", << pipeline.git.tag >>]
           steps:
             - run:
-                name: Post Artifact
+                name: GoReleaser Release
                 command: |
-                  for f in .bin/templr*; do
-                    gh -R "github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" release upload ${CIRCLE_TAG} "${f}" --clobber
-                  done
+                  # Create GitHub release and build all artifacts
+                  curl -sL https://git.io/goreleaser | GITHUB_TOKEN="${GITHUB_TOKEN}" \
+                    HOMEBREW_TAP_GITHUB_TOKEN="${HOMEBREW_TAP_GITHUB_TOKEN:-$GITHUB_TOKEN}" \
+                    bash -s -- release --clean
             - run:
                 name: Build Web Playground
                 command: |
-                  bash ./deploy.sh
-            - docker/build:
-                image: *DOCKER_IMAGE
-                tag: "<< pipeline.git.tag >>,latest"
-                extra_build_args: "--platform linux/amd64,linux/arm64 --push"
+                  bash ./deploy.sh || echo "Web playground deploy skipped"
+            - store_artifacts:
+                path: dist
+                destination: templr-artifacts
 
 workflows:
   version: 2
