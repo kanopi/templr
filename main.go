@@ -24,6 +24,29 @@ var (
 	Version string // preferred explicit version (e.g., a tag)
 )
 
+// Exit codes for CI-friendly behavior.
+const (
+	ExitOK            = 0
+	ExitGeneral       = 1
+	ExitTemplateError = 2
+	ExitDataError     = 3
+	ExitStrictError   = 4
+	ExitGuardSkipped  = 5
+)
+
+// errf prints a standardized error line and exits with the given code.
+// Format: [templr:error:<kind>] message
+func errf(code int, kind, format string, a ...any) {
+	fmt.Fprintf(os.Stderr, "[templr:error:%s] %s\n", kind, fmt.Sprintf(format, a...))
+	os.Exit(code)
+}
+
+// warnf prints a standardized warning (does not exit).
+// Format: [templr:warn:<kind>] message
+func warnf(kind, format string, a ...any) {
+	fmt.Fprintf(os.Stderr, "[templr:warn:%s] %s\n", kind, fmt.Sprintf(format, a...))
+}
+
 // getVersion returns a human-friendly version string.
 // Priority:
 //  1. Version (ldflags)
@@ -498,8 +521,7 @@ func main() { //nolint:gocyclo,cyclop
 	// ----- WALK MODE -----
 	if *walk {
 		if *src == "" || *dst == "" {
-			fmt.Fprintln(os.Stderr, "-walk requires -src and -dst")
-			os.Exit(1)
+			errf(ExitGeneral, "args", "-walk requires -src and -dst")
 		}
 		absSrc, _ := filepath.Abs(*src)
 		absDst, _ := filepath.Abs(*dst)
@@ -508,31 +530,27 @@ func main() { //nolint:gocyclo,cyclop
 		values = map[string]any{}
 		def, derr := loadDefaultValues(absSrc)
 		if derr != nil {
-			fmt.Fprintln(os.Stderr, "load default values:", derr)
-			os.Exit(1)
+			errf(ExitDataError, "data", "load default values: %v", derr)
 		}
 		values = deepMerge(values, def)
 		if *data != "" {
 			add, err := loadData(*data)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "load data:", err)
-				os.Exit(1)
+				errf(ExitDataError, "data", "load data: %v", err)
 			}
 			values = deepMerge(values, add)
 		}
 		for _, f := range files {
 			add, err := loadData(f)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "load -f:", f, "error:", err)
-				os.Exit(1)
+				errf(ExitDataError, "data", "load -f %s: %v", f, err)
 			}
 			values = deepMerge(values, add)
 		}
 		for _, kv := range sets {
 			idx := strings.Index(kv, "=")
 			if idx <= 0 {
-				fmt.Fprintln(os.Stderr, "--set expects key=value, got:", kv)
-				os.Exit(1)
+				errf(ExitGeneral, "args", "--set expects key=value, got: %s", kv)
 			}
 			key := kv[:idx]
 			val := parseScalar(kv[idx+1:])
@@ -546,14 +564,12 @@ func main() { //nolint:gocyclo,cyclop
 		var names []string
 		tpl, names, err = readAllTplsIntoSet(tpl, absSrc, allowExts)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "parse tree:", err)
-			os.Exit(1)
+			errf(ExitTemplateError, "parse", "parse tree: %v", err)
 		}
 
 		// Compute helper-driven variables (templr.vars)
 		if err := computeHelperVars(tpl, values); err != nil {
-			fmt.Fprintln(os.Stderr, "helpers vars:", err)
-			os.Exit(1)
+			errf(ExitTemplateError, "helpers", "%v", err)
 		}
 
 		// Render each non-partial template; skip empty; enforce guard on overwrite
@@ -567,8 +583,10 @@ func main() { //nolint:gocyclo,cyclop
 			// render to buffer first
 			outBytes, rerr := renderToBuffer(tpl, name, values)
 			if rerr != nil {
-				fmt.Fprintf(os.Stderr, "render error %s: %v\n", name, rerr)
-				os.Exit(1)
+				if *strict {
+					errf(ExitStrictError, "strict", "%v", rerr)
+				}
+				errf(ExitTemplateError, "render", "render error %s: %v", name, rerr)
 			}
 			// apply global default-missing replacement
 			outBytes = applyDefaultMissing(outBytes, *defaultMissing)
@@ -583,14 +601,13 @@ func main() { //nolint:gocyclo,cyclop
 			// Guard check BEFORE any mkdir/write
 			ok, gerr := canOverwrite(dstPath, *guard)
 			if gerr != nil && !os.IsNotExist(gerr) {
-				fmt.Fprintf(os.Stderr, "guard check %s: %v\n", dstPath, gerr)
-				os.Exit(1)
+				errf(ExitGeneral, "guard", "guard check %s: %v", dstPath, gerr)
 			}
 			if !ok {
 				if *dryRun {
 					fmt.Printf("[dry-run] skip (guard missing) %s\n", dstPath)
 				} else {
-					fmt.Fprintf(os.Stderr, "skip (guard missing) %s\n", dstPath)
+					warnf("guard", "skip (guard missing) %s", dstPath)
 				}
 				continue
 			}
@@ -613,20 +630,17 @@ func main() { //nolint:gocyclo,cyclop
 			}
 			// Only now create directory and write
 			if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
-				fmt.Fprintln(os.Stderr, "mkdir:", dstPath, "err:", err)
-				os.Exit(1)
+				errf(ExitGeneral, "io", "mkdir %s: %v", dstPath, err)
 			}
 			if err := os.WriteFile(dstPath, outBytes, 0o644); err != nil {
-				fmt.Fprintln(os.Stderr, "write:", dstPath, "err:", err)
-				os.Exit(1)
+				errf(ExitGeneral, "write", "write %s: %v", dstPath, err)
 			}
 			fmt.Printf("rendered %s -> %s\n", name, dstPath)
 		}
 
 		// Cleanup: remove empty directories under dst
 		if err := pruneEmptyDirs(absDst); err != nil {
-			fmt.Fprintln(os.Stderr, "prune:", err)
-			os.Exit(1)
+			errf(ExitGeneral, "io", "prune: %v", err)
 		}
 		return
 	}
@@ -638,31 +652,27 @@ func main() { //nolint:gocyclo,cyclop
 		values = map[string]any{}
 		def, derr := loadDefaultValues(absDir)
 		if derr != nil {
-			fmt.Fprintln(os.Stderr, "load default values:", derr)
-			os.Exit(1)
+			errf(ExitDataError, "data", "load default values: %v", derr)
 		}
 		values = deepMerge(values, def)
 		if *data != "" {
 			add, err := loadData(*data)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "load data:", err)
-				os.Exit(1)
+				errf(ExitDataError, "data", "load data: %v", err)
 			}
 			values = deepMerge(values, add)
 		}
 		for _, f := range files {
 			add, err := loadData(f)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "load -f:", f, "error:", err)
-				os.Exit(1)
+				errf(ExitDataError, "data", "load -f %s: %v", f, err)
 			}
 			values = deepMerge(values, add)
 		}
 		for _, kv := range sets {
 			idx := strings.Index(kv, "=")
 			if idx <= 0 {
-				fmt.Fprintln(os.Stderr, "--set expects key=value, got:", kv)
-				os.Exit(1)
+				errf(ExitGeneral, "args", "--set expects key=value, got: %s", kv)
 			}
 			key := kv[:idx]
 			val := parseScalar(kv[idx+1:])
@@ -675,14 +685,12 @@ func main() { //nolint:gocyclo,cyclop
 		var names []string
 		tpl, names, err = readAllTplsIntoSet(tpl, absDir, allowExts)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "parse dir templates:", err)
-			os.Exit(1)
+			errf(ExitTemplateError, "parse", "parse dir templates: %v", err)
 		}
 
 		// Compute helper-driven variables (templr.vars)
 		if err := computeHelperVars(tpl, values); err != nil {
-			fmt.Fprintln(os.Stderr, "helpers vars:", err)
-			os.Exit(1)
+			errf(ExitTemplateError, "helpers", "%v", err)
 		}
 
 		entryName := ""
@@ -709,8 +717,10 @@ func main() { //nolint:gocyclo,cyclop
 		// render to buffer
 		outBytes, rerr := renderToBuffer(tpl, entryName, values)
 		if rerr != nil {
-			fmt.Fprintln(os.Stderr, "render:", rerr)
-			os.Exit(1)
+			if *strict {
+				errf(ExitStrictError, "strict", "%v", rerr)
+			}
+			errf(ExitTemplateError, "render", "%v", rerr)
 		}
 		// apply global default-missing replacement
 		outBytes = applyDefaultMissing(outBytes, *defaultMissing)
@@ -732,14 +742,13 @@ func main() { //nolint:gocyclo,cyclop
 		if *out != "" {
 			ok, gerr := canOverwrite(*out, *guard)
 			if gerr != nil && !os.IsNotExist(gerr) {
-				fmt.Fprintf(os.Stderr, "guard check %s: %v\n", *out, gerr)
-				os.Exit(1)
+				errf(ExitGeneral, "guard", "guard check %s: %v", *out, gerr)
 			}
 			if !ok {
 				if *dryRun {
 					fmt.Printf("[dry-run] skip (guard missing) %s\n", *out)
 				} else {
-					fmt.Fprintf(os.Stderr, "skip (guard missing) %s\n", *out)
+					warnf("guard", "skip (guard missing) %s", *out)
 				}
 				return
 			}
@@ -768,18 +777,15 @@ func main() { //nolint:gocyclo,cyclop
 				outBytes = injectGuardForExt(*out, outBytes, *guard)
 			}
 			if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
-				fmt.Fprintln(os.Stderr, "mkdir out dir:", err)
-				os.Exit(1)
+				errf(ExitGeneral, "io", "mkdir out dir: %v", err)
 			}
 			if err := os.WriteFile(*out, outBytes, 0o644); err != nil {
-				fmt.Fprintln(os.Stderr, "write out:", err)
-				os.Exit(1)
+				errf(ExitGeneral, "write", "write out: %v", err)
 			}
 			return
 		}
 		if _, err := w.Write(outBytes); err != nil {
-			fmt.Fprintln(os.Stderr, "write:", err)
-			os.Exit(1)
+			errf(ExitGeneral, "write", "%v", err)
 		}
 		return
 	}
@@ -798,31 +804,27 @@ func main() { //nolint:gocyclo,cyclop
 	values = map[string]any{}
 	def, derr := loadDefaultValues(filesRoot)
 	if derr != nil {
-		fmt.Fprintln(os.Stderr, "load default values:", derr)
-		os.Exit(1)
+		errf(ExitDataError, "data", "load default values: %v", derr)
 	}
 	values = deepMerge(values, def)
 	if *data != "" {
 		add, err := loadData(*data)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "load data:", err)
-			os.Exit(1)
+			errf(ExitDataError, "data", "load data: %v", err)
 		}
 		values = deepMerge(values, add)
 	}
 	for _, f := range files {
 		add, err := loadData(f)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "load -f:", f, "error:", err)
-			os.Exit(1)
+			errf(ExitDataError, "data", "load -f %s: %v", f, err)
 		}
 		values = deepMerge(values, add)
 	}
 	for _, kv := range sets {
 		idx := strings.Index(kv, "=")
 		if idx <= 0 {
-			fmt.Fprintln(os.Stderr, "--set expects key=value, got:", kv)
-			os.Exit(1)
+			errf(ExitGeneral, "args", "--set expects key=value, got: %s", kv)
 		}
 		key := kv[:idx]
 		val := parseScalar(kv[idx+1:])
@@ -834,14 +836,12 @@ func main() { //nolint:gocyclo,cyclop
 	if *in == "" {
 		srcBytes, err = io.ReadAll(os.Stdin)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "read stdin:", err)
-			os.Exit(1)
+			errf(ExitGeneral, "read", "read stdin: %v", err)
 		}
 	} else {
 		srcBytes, err = os.ReadFile(*in)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "read template:", err)
-			os.Exit(1)
+			errf(ExitGeneral, "read", "read template: %v", err)
 		}
 	}
 
@@ -852,8 +852,7 @@ func main() { //nolint:gocyclo,cyclop
 			for _, hp := range matches {
 				if b, e := os.ReadFile(hp); e == nil {
 					if _, e2 := tpl.New(filepath.ToSlash(filepath.Base(hp))).Parse(string(b)); e2 != nil {
-						fmt.Fprintf(os.Stderr, "parse helper %s: %v\n", hp, e2)
-						os.Exit(1)
+						errf(ExitTemplateError, "parse", "parse helper %s: %v", hp, e2)
 					}
 				}
 			}
@@ -862,21 +861,21 @@ func main() { //nolint:gocyclo,cyclop
 
 	tpl, err = tpl.Parse(string(srcBytes))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "parse:", err)
-		os.Exit(1)
+		errf(ExitTemplateError, "parse", "%v", err)
 	}
 
 	// Compute helper-driven variables (templr.vars)
 	if err := computeHelperVars(tpl, values); err != nil {
-		fmt.Fprintln(os.Stderr, "helpers vars:", err)
-		os.Exit(1)
+		errf(ExitTemplateError, "helpers", "%v", err)
 	}
 
 	// render to buffer
 	outBytes, rerr := renderToBuffer(tpl, "", values)
 	if rerr != nil {
-		fmt.Fprintln(os.Stderr, "render:", rerr)
-		os.Exit(1)
+		if *strict {
+			errf(ExitStrictError, "strict", "%v", rerr)
+		}
+		errf(ExitTemplateError, "render", "%v", rerr)
 	}
 	// apply global default-missing replacement
 	outBytes = applyDefaultMissing(outBytes, *defaultMissing)
@@ -902,15 +901,14 @@ func main() { //nolint:gocyclo,cyclop
 	if *out != "" {
 		ok, gerr := canOverwrite(*out, *guard)
 		if gerr != nil && !os.IsNotExist(gerr) {
-			fmt.Fprintf(os.Stderr, "guard check %s: %v\n", *out, gerr)
-			os.Exit(1)
+			errf(ExitGeneral, "guard", "guard check %s: %v", *out, gerr)
 		}
 		if !ok {
 			if *dryRun {
 				fmt.Printf("[dry-run] skip (guard missing) %s\n", *out)
 				return
 			}
-			fmt.Fprintf(os.Stderr, "skip (guard missing) %s\n", *out)
+			warnf("guard", "skip (guard missing) %s", *out)
 			return
 		}
 	}
@@ -941,18 +939,15 @@ func main() { //nolint:gocyclo,cyclop
 			outBytes = injectGuardForExt(*out, outBytes, *guard)
 		}
 		if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
-			fmt.Fprintln(os.Stderr, "mkdir out dir:", err)
-			os.Exit(1)
+			errf(ExitGeneral, "io", "mkdir out dir: %v", err)
 		}
 		if err := os.WriteFile(*out, outBytes, 0o644); err != nil {
-			fmt.Fprintln(os.Stderr, "write out:", err)
-			os.Exit(1)
+			errf(ExitGeneral, "write", "write out: %v", err)
 		}
 		return
 	}
 	if _, err := os.Stdout.Write(outBytes); err != nil {
-		fmt.Fprintln(os.Stderr, "write:", err)
-		os.Exit(1)
+		errf(ExitGeneral, "write", "%v", err)
 	}
 }
 
