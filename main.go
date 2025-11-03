@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"github.com/Masterminds/sprig/v3"
 	"gopkg.in/yaml.v3"
@@ -274,9 +275,27 @@ func shouldRender(rel string) bool {
 	return !strings.HasPrefix(base, "_")
 }
 
-// isEmpty reports true if, after removing *all* whitespace (anywhere), no characters remain.
+// isEmpty reports true if, after normalizing line endings,
+// stripping BOM, and removing all Unicode whitespace, nothing remains.
+// This handles edge cases like CRLF, UTF-8 BOM, non-breaking spaces,
+// zero-width spaces, and other Unicode whitespace characters.
 func isEmpty(b []byte) bool {
-	return len(bytes.Fields(b)) == 0
+	// Strip UTF-8 BOM if present
+	if len(b) >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF {
+		b = b[3:]
+	}
+
+	// Normalize CRLF -> LF
+	b = bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
+
+	// Remove all Unicode whitespace
+	// (including spaces, tabs, newlines, NBSP, ZWSP categories, etc.)
+	for _, r := range string(b) {
+		if !unicode.IsSpace(r) {
+			return false
+		}
+	}
+	return true
 }
 
 // renderToBuffer executes a template into an in-memory buffer.
