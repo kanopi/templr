@@ -1,0 +1,1 @@
+foo: {{ default "missing" .foo }}

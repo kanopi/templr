@@ -1,0 +1,2 @@
+app: kanopi
+features: [auth, cache]

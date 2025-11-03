@@ -1,0 +1,6 @@
+# #templr generated
+app: kanopi
+replicas: 1
+features:
+  - auth
+  - cache

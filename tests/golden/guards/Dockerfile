@@ -1,0 +1,2 @@
+# #templr generated
+FROM scratch

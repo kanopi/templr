@@ -1,0 +1,39 @@
+/templr
+/vendor
+*.log
+
+# Build artifacts
+/.out/
+/.bin/
+/dist/
+/build/
+/coverage/
+
+# Test outputs
+*.test
+
+# Archives
+*.zip
+*.tar.gz
+
+# System files
+.DS_Store
+.env
+
+# IDE files
+.idea/
+.vscode/
+
+# Executables and libraries
+*.exe
+*.dll
+*.so
+*.dylib
+
+/templr-testbin
+
+# Web Related Items
+/web/templr.wasm
+/web/wasm_exec.js
+
+/public
