@@ -21,6 +21,8 @@ const (
 	ExitDataError     = 3
 	ExitStrictError   = 4
 	ExitGuardSkipped  = 5
+	ExitLintWarn      = 6 // lint found warnings (with --fail-on-warn)
+	ExitLintError     = 7 // lint found errors
 )
 
 // getVersion returns a human-friendly version string.
@@ -62,6 +64,14 @@ var (
 	// walk command
 	flagWalkSrc string
 	flagWalkDst string
+
+	// lint command
+	flagLintIn           string
+	flagLintDir          string
+	flagLintSrc          string
+	flagLintFailOnWarn   bool
+	flagLintFormat       string
+	flagLintNoUndefCheck bool
 )
 
 var rootCmd = &cobra.Command{
@@ -75,6 +85,7 @@ SUBCOMMANDS:
   render    Render a single template file (default if no subcommand given)
   dir       Render templates from a directory
   walk      Recursively render template directory trees
+  lint      Validate template syntax and detect issues
   version   Print version information
 
 EXAMPLES:
@@ -89,6 +100,9 @@ EXAMPLES:
 
   # Walk and render entire directory tree
   templr walk --src templates/ --dst output/
+
+  # Validate template syntax
+  templr lint --src templates/ -data values.yaml
 
   # Backward compatible: old syntax still works
   templr -in template.tpl -data values.yaml -out output.txt
@@ -215,6 +229,58 @@ Examples:
 	},
 }
 
+var lintCmd = &cobra.Command{
+	Use:   "lint",
+	Short: "Validate template syntax and detect issues",
+	Long: `Validate template syntax without rendering. Optionally detect undefined variables.
+
+This command helps catch template errors early in CI/CD pipelines by:
+  - Checking template syntax correctness (parse errors)
+  - Detecting undefined variable references (with --data)
+  - Reporting issues with file paths and line numbers
+
+Examples:
+  # Lint a single template file
+  templr lint -i template.tpl -d values.yaml
+
+  # Lint all templates in a directory
+  templr lint --dir templates/ -d values.yaml
+
+  # Lint entire directory tree
+  templr lint --src templates/ -d values.yaml
+
+  # Fail CI on warnings (not just errors)
+  templr lint --src templates/ -d values.yaml --fail-on-warn
+
+  # Skip undefined variable checking (syntax only)
+  templr lint --src templates/ --no-undefined-check`,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		opts := LintOptions{
+			Shared: SharedOptions{
+				Data:           flagData,
+				Files:          flagFiles,
+				Sets:           flagSets,
+				Strict:         flagStrict,
+				DryRun:         flagDryRun,
+				Guard:          flagGuard,
+				InjectGuard:    flagInjectGuard,
+				DefaultMissing: flagDefaultMissing,
+				NoColor:        flagNoColor,
+				Ldelim:         flagLdelim,
+				Rdelim:         flagRdelim,
+				ExtraExts:      flagExtraExts,
+			},
+			In:           flagLintIn,
+			Dir:          flagLintDir,
+			Src:          flagLintSrc,
+			FailOnWarn:   flagLintFailOnWarn,
+			Format:       flagLintFormat,
+			NoUndefCheck: flagLintNoUndefCheck,
+		}
+		return RunLintMode(opts)
+	},
+}
+
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
@@ -255,8 +321,16 @@ func init() {
 	_ = walkCmd.MarkFlagRequired("src")
 	_ = walkCmd.MarkFlagRequired("dst")
 
+	// Lint command flags
+	lintCmd.Flags().StringVarP(&flagLintIn, "in", "i", "", "Single template file to lint")
+	lintCmd.Flags().StringVar(&flagLintDir, "dir", "", "Directory of templates to lint")
+	lintCmd.Flags().StringVar(&flagLintSrc, "src", "", "Source directory tree to walk and lint")
+	lintCmd.Flags().BoolVar(&flagLintFailOnWarn, "fail-on-warn", false, "Exit with code 1 on warnings (default: errors only)")
+	lintCmd.Flags().StringVar(&flagLintFormat, "format", "text", "Output format: text, json, github-actions")
+	lintCmd.Flags().BoolVar(&flagLintNoUndefCheck, "no-undefined-check", false, "Skip undefined variable detection")
+
 	// Add subcommands
-	rootCmd.AddCommand(renderCmd, dirCmd, walkCmd, versionCmd)
+	rootCmd.AddCommand(renderCmd, dirCmd, walkCmd, lintCmd, versionCmd)
 }
 
 func main() {
@@ -281,6 +355,7 @@ func main() {
 			"render":     true,
 			"dir":        true,
 			"walk":       true,
+			"lint":       true,
 			"version":    true,
 			"help":       true,
 			"completion": true,
