@@ -191,8 +191,55 @@ func TestExitCodes_StrictError_MissingKey(t *testing.T) {
 		t.Errorf("expected exit code 4 (ExitStrictError), got %d", exitCode)
 	}
 
-	if !strings.Contains(stderr, "[templr:error:strict]") {
-		t.Errorf("expected error kind 'strict', stderr=%s", stderr)
+	// Check for enhanced error format (with or without color codes)
+	if !strings.Contains(stderr, "Strict Mode Error") {
+		t.Errorf("expected 'Strict Mode Error' in enhanced format, stderr=%s", stderr)
+	}
+
+	if !strings.Contains(stderr, "missingKey") {
+		t.Errorf("expected missing key name in error output, stderr=%s", stderr)
+	}
+
+	if !strings.Contains(stderr, "Tip:") {
+		t.Errorf("expected helpful tip in error output, stderr=%s", stderr)
+	}
+}
+
+func TestExitCodes_StrictError_NoColor(t *testing.T) {
+	start, _ := os.Getwd()
+	bin := buildTemplr(t, start)
+
+	td := t.TempDir()
+	in := filepath.Join(td, "in.tpl")
+
+	// Template references undefined key
+	if err := os.WriteFile(in, []byte("value: {{ .missingKey }}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, stderr, err := run(t, bin, "-in", in, "-strict", "--no-color")
+	exitCode := getExitCode(err)
+
+	if exitCode != 4 {
+		t.Errorf("expected exit code 4 (ExitStrictError), got %d", exitCode)
+	}
+
+	// Check for enhanced error format without ANSI color codes
+	if !strings.Contains(stderr, "Strict Mode Error") {
+		t.Errorf("expected 'Strict Mode Error' in output, stderr=%s", stderr)
+	}
+
+	// Ensure no ANSI color codes are present
+	if strings.Contains(stderr, "\033[") {
+		t.Errorf("expected no ANSI color codes with --no-color, stderr=%s", stderr)
+	}
+
+	if !strings.Contains(stderr, "missingKey") {
+		t.Errorf("expected missing key name in error output, stderr=%s", stderr)
+	}
+
+	if !strings.Contains(stderr, "Tip:") {
+		t.Errorf("expected helpful tip in error output, stderr=%s", stderr)
 	}
 }
 

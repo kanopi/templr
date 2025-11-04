@@ -17,12 +17,23 @@ import (
 	"unicode"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/kanopi/templr/pkg/templr"
 	"gopkg.in/yaml.v3"
 )
 
 // Build-time variables (overridable via -ldflags)
 var (
 	Version string // preferred explicit version (e.g., a tag)
+)
+
+// ANSI color codes for terminal output
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorYellow = "\033[33m"
+	colorCyan   = "\033[36m"
+	colorGray   = "\033[90m"
+	colorBold   = "\033[1m"
 )
 
 // Exit codes for CI-friendly behavior.
@@ -46,6 +57,138 @@ func errf(code int, kind, format string, a ...any) {
 // Format: [templr:warn:<kind>] message
 func warnf(kind, format string, a ...any) {
 	fmt.Fprintf(os.Stderr, "[templr:warn:%s] %s\n", kind, fmt.Sprintf(format, a...))
+}
+
+// strictErrf prints an enhanced strict mode error with context and exits with ExitStrictError.
+func strictErrf(err error, sources map[string][]byte, noColor bool) {
+	fmt.Fprint(os.Stderr, formatStrictError(err, sources, noColor))
+	os.Exit(ExitStrictError)
+}
+
+// formatStrictError enhances strict mode errors with colors, context lines, and helpful hints.
+// It parses Go template errors to extract line numbers and missing keys, then formats them
+// in a developer-friendly way with syntax highlighting and contextual information.
+func formatStrictError(err error, templateSources map[string][]byte, noColor bool) string {
+	if err == nil {
+		return ""
+	}
+
+	errMsg := err.Error()
+
+	// Helper to optionally colorize text
+	colorize := func(color, text string) string {
+		if noColor {
+			return text
+		}
+		return color + text + colorReset
+	}
+
+	// Parse template error format: "template: name:line:col: executing ... at <expr>: message"
+	// Example: template: example.tpl:5:12: executing "example.tpl" at <.missing.key>: map has no entry for key "missing"
+	var tplName string
+	var lineNum int
+	var expr string
+	var missingKey string
+
+	// Try to parse template name and line number
+	if strings.HasPrefix(errMsg, "template: ") {
+		rest := errMsg[10:] // skip "template: "
+		// Find first colon (marks end of template name)
+		if idx := strings.Index(rest, ":"); idx > 0 {
+			tplName = rest[:idx]
+			rest = rest[idx+1:]
+			// Try to parse line number
+			if idx2 := strings.Index(rest, ":"); idx2 > 0 {
+				if ln, e := strconv.Atoi(rest[:idx2]); e == nil {
+					lineNum = ln
+				}
+			}
+		}
+	}
+
+	// Extract the expression that failed (between < and >)
+	if start := strings.Index(errMsg, "at <"); start >= 0 {
+		start += 4
+		if end := strings.Index(errMsg[start:], ">"); end >= 0 {
+			expr = errMsg[start : start+end]
+		}
+	}
+
+	// Extract missing key from error message
+	if strings.Contains(errMsg, "map has no entry for key") {
+		if start := strings.Index(errMsg, `key "`); start >= 0 {
+			start += 5
+			if end := strings.Index(errMsg[start:], `"`); end >= 0 {
+				missingKey = errMsg[start : start+end]
+			}
+		}
+	}
+
+	var buf bytes.Buffer
+
+	// Error header
+	buf.WriteString(colorize(colorRed+colorBold, "✗ Strict Mode Error") + "\n")
+
+	if tplName != "" && lineNum > 0 {
+		buf.WriteString(colorize(colorCyan, fmt.Sprintf("  %s:%d", tplName, lineNum)) + "\n\n")
+
+		// Try to show context if we have the source
+		if src, ok := templateSources[tplName]; ok {
+			lines := bytes.Split(src, []byte("\n"))
+			if lineNum > 0 && lineNum <= len(lines) {
+				// Show context: 1 line before and 1 line after
+				start := lineNum - 2
+				if start < 0 {
+					start = 0
+				}
+				end := lineNum + 1
+				if end > len(lines) {
+					end = len(lines)
+				}
+
+				for i := start; i < end; i++ {
+					lineNumStr := fmt.Sprintf("%4d", i+1)
+					if i+1 == lineNum {
+						// Highlight the error line
+						buf.WriteString(colorize(colorGray, lineNumStr) + " | ")
+						buf.WriteString(colorize(colorRed, string(lines[i])) + "\n")
+						// Add pointer to the error location
+						buf.WriteString(colorize(colorGray, "     | "))
+						buf.WriteString(colorize(colorRed, "^ Error occurred here") + "\n")
+					} else {
+						buf.WriteString(colorize(colorGray, lineNumStr) + " | ")
+						buf.WriteString(string(lines[i]) + "\n")
+					}
+				}
+				buf.WriteString("\n")
+			}
+		}
+	}
+
+	// Show the missing key/expression
+	if expr != "" {
+		buf.WriteString(colorize(colorRed, "  Missing: ") + expr + "\n")
+	}
+	if missingKey != "" {
+		buf.WriteString(colorize(colorRed, "  Key: ") + missingKey + "\n")
+	}
+
+	buf.WriteString("\n")
+
+	// Show the original error message (dimmed)
+	buf.WriteString(colorize(colorGray, "  Details: "+errMsg) + "\n\n")
+
+	// Helpful hint
+	buf.WriteString(colorize(colorYellow, "  💡 Tip: "))
+	if missingKey != "" {
+		buf.WriteString(fmt.Sprintf("Define '%s' in your values file, or run without --strict to use defaults.\n", missingKey))
+	} else if expr != "" {
+		buf.WriteString(fmt.Sprintf("Define '%s' in your values file, or run without --strict to use defaults.\n", expr))
+	} else {
+		buf.WriteString("Check your values file to ensure all required keys are defined, or run without --strict.\n")
+	}
+
+	return buf.String()
 }
 
 // getVersion returns a human-friendly version string.
@@ -237,8 +380,10 @@ func trimAnyExt(name string, allowExts map[string]bool) string {
 
 // readAllTplsIntoSet parses every allowed template file under root into the given template set,
 // naming each template by its forward-slash relative path (to avoid base name collisions).
-func readAllTplsIntoSet(tpl *template.Template, root string, allowExts map[string]bool) (*template.Template, []string, error) {
+// Also returns a map of template sources for error reporting.
+func readAllTplsIntoSet(tpl *template.Template, root string, allowExts map[string]bool) (*template.Template, []string, map[string][]byte, error) {
 	var names []string
+	sources := make(map[string][]byte)
 	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -259,6 +404,7 @@ func readAllTplsIntoSet(tpl *template.Template, root string, allowExts map[strin
 		if err != nil {
 			return err
 		}
+		sources[rel] = src // Store source for error reporting
 		_, err = tpl.New(rel).Parse(string(src))
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", rel, err)
@@ -266,7 +412,7 @@ func readAllTplsIntoSet(tpl *template.Template, root string, allowExts map[strin
 		names = append(names, rel)
 		return nil
 	})
-	return tpl, names, err
+	return tpl, names, sources, err
 }
 
 // shouldRender returns false for "partials" (files whose base name starts with "_").
@@ -341,38 +487,6 @@ func canOverwrite(path, guard string) (bool, error) {
 		return false, err
 	}
 	return hasGuardFlexible(path, b, guard), nil
-}
-
-// pruneEmptyDirs removes empty directories under root (bottom-up).
-func pruneEmptyDirs(root string) error {
-	var dirs []string
-	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			dirs = append(dirs, p)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	// deepest-first: longer paths first
-	sort.Slice(dirs, func(i, j int) bool { return len(dirs[i]) > len(dirs[j]) })
-	for _, d := range dirs {
-		if d == root {
-			continue
-		}
-		entries, err := os.ReadDir(d)
-		if err != nil {
-			continue
-		}
-		if len(entries) == 0 {
-			_ = os.Remove(d)
-		}
-	}
-	return nil
 }
 
 // fastEqual reports true if existing file at path has the same bytes as newBytes.
@@ -487,6 +601,7 @@ func main() { //nolint:gocyclo,cyclop
 
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	defaultMissing := flag.String("default-missing", "<no value>", "String to render when a variable/key is missing (works with missingkey=default)")
+	noColor := flag.Bool("no-color", false, "Disable colored output (useful for CI/non-ANSI terminals)")
 
 	flag.Parse()
 
@@ -663,7 +778,8 @@ func main() { //nolint:gocyclo,cyclop
 		// Parse ALL templates (so includes/partials are available)
 		allowExts := buildAllowedExts(extraExts)
 		var names []string
-		tpl, names, err = readAllTplsIntoSet(tpl, absSrc, allowExts)
+		var sources map[string][]byte
+		tpl, names, sources, err = readAllTplsIntoSet(tpl, absSrc, allowExts)
 		if err != nil {
 			errf(ExitTemplateError, "parse", "parse tree: %v", err)
 		}
@@ -685,7 +801,7 @@ func main() { //nolint:gocyclo,cyclop
 			outBytes, rerr := renderToBuffer(tpl, name, values)
 			if rerr != nil {
 				if *strict {
-					errf(ExitStrictError, "strict", "%v", rerr)
+					strictErrf(rerr, sources, *noColor)
 				}
 				errf(ExitTemplateError, "render", "render error %s: %v", name, rerr)
 			}
@@ -746,7 +862,7 @@ func main() { //nolint:gocyclo,cyclop
 		}
 
 		// Cleanup: remove empty directories under dst
-		if err := pruneEmptyDirs(absDst); err != nil {
+		if err := templr.PruneEmptyDirs(absDst); err != nil {
 			errf(ExitGeneral, "io", "prune: %v", err)
 		}
 		return
@@ -790,7 +906,8 @@ func main() { //nolint:gocyclo,cyclop
 		// Parse all *.tpl in dir using path-based names
 		allowExts := buildAllowedExts(extraExts)
 		var names []string
-		tpl, names, err = readAllTplsIntoSet(tpl, absDir, allowExts)
+		var sources map[string][]byte
+		tpl, names, sources, err = readAllTplsIntoSet(tpl, absDir, allowExts)
 		if err != nil {
 			errf(ExitTemplateError, "parse", "parse dir templates: %v", err)
 		}
@@ -825,7 +942,7 @@ func main() { //nolint:gocyclo,cyclop
 		outBytes, rerr := renderToBuffer(tpl, entryName, values)
 		if rerr != nil {
 			if *strict {
-				errf(ExitStrictError, "strict", "%v", rerr)
+				strictErrf(rerr, sources, *noColor)
 			}
 			errf(ExitTemplateError, "render", "%v", rerr)
 		}
@@ -956,6 +1073,8 @@ func main() { //nolint:gocyclo,cyclop
 	values["Files"] = FilesAPI{Root: filesRoot}
 
 	var srcBytes []byte
+	sources := make(map[string][]byte)
+	tplName := "stdin"
 	if *in == "" {
 		srcBytes, err = io.ReadAll(os.Stdin)
 		if err != nil {
@@ -966,7 +1085,10 @@ func main() { //nolint:gocyclo,cyclop
 		if err != nil {
 			errf(ExitGeneral, "read", "read template: %v", err)
 		}
+		tplName = filepath.Base(*in)
 	}
+	sources[tplName] = srcBytes
+	sources["root"] = srcBytes // Also map to "root" since that's what template.Parse uses
 
 	// Load sidecar helpers in the same directory based on -helpers glob (default: _helpers.tpl)
 	if filesRoot != "" && filesRoot != "." && *helpers != "" {
@@ -974,7 +1096,9 @@ func main() { //nolint:gocyclo,cyclop
 		if matches, _ := filepath.Glob(pattern); len(matches) > 0 {
 			for _, hp := range matches {
 				if b, e := os.ReadFile(hp); e == nil {
-					if _, e2 := tpl.New(filepath.ToSlash(filepath.Base(hp))).Parse(string(b)); e2 != nil {
+					helperName := filepath.ToSlash(filepath.Base(hp))
+					sources[helperName] = b
+					if _, e2 := tpl.New(helperName).Parse(string(b)); e2 != nil {
 						errf(ExitTemplateError, "parse", "parse helper %s: %v", hp, e2)
 					}
 				}
@@ -996,7 +1120,7 @@ func main() { //nolint:gocyclo,cyclop
 	outBytes, rerr := renderToBuffer(tpl, "", values)
 	if rerr != nil {
 		if *strict {
-			errf(ExitStrictError, "strict", "%v", rerr)
+			strictErrf(rerr, sources, *noColor)
 		}
 		errf(ExitTemplateError, "render", "%v", rerr)
 	}
