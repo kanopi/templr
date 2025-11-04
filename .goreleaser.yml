@@ -38,16 +38,16 @@ builds:
       - goos: windows
         goarch: arm64
 
-archives:
-  - id: templr
-    formats: ['tar.gz']
-    name_template: "{{ .ProjectName }}-{{ tolower .Os }}-{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        formats: ['zip']
-    files:
-      - LICENSE
-      - README.md
+# archives:
+#   - id: templr
+#     formats: ['tar.gz']
+#     name_template: "{{ .ProjectName }}-{{ tolower .Os }}-{{ .Arch }}"
+#     format_overrides:
+#       - goos: windows
+#         formats: ['zip']
+#     files:
+#       - LICENSE
+#       - README.md
 
 checksum:
   name_template: "SHA256SUMS"
@@ -88,27 +88,23 @@ homebrew_casks:
     repository:
       owner: kanopi
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: "{{ .Env.GITHUB_TOKEN }}"
     directory: Casks
     homepage: https://github.com/kanopi/templr
     description: "A powerful Go template rendering CLI tool with Sprig functions"
     license: MIT
     url:
-      template: "https://github.com/kanopi/templr/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+      template: "https://github.com/kanopi/templr/releases/download/{{ .Tag }}/templr-{{ tolower .Os }}-{{ .Arch }}"
       verified: "github.com/kanopi/templr/"
     skip_upload: auto
 
 dockers_v2:
   - id: templr
-    # reuses binaries built by `builds:`; see "binary name" note below
-    dockerfile: Dockerfile
-    ids: 
-      - "{{ .ProjectName }}-{{ tolower .Os }}-{{ .Arch }}"
     images:
       - docker.io/kanopi/templr
     tags:
-      - "{{ .Version }}-goreleaser"
-      # - "{{ if not .Prerelease }}latest{{ end }}"
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
