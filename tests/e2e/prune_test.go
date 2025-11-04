@@ -1,9 +1,11 @@
-package main
+package e2e
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/kanopi/templr/pkg/templr"
 )
 
 // Helper: must make directory in tests
@@ -30,7 +32,7 @@ func TestPruneEmptyDirs_SimpleLeaf(t *testing.T) {
 	empty := filepath.Join(root, "foo")
 	mustMkdirAll(t, empty)
 
-	if err := pruneEmptyDirs(root); err != nil {
+	if err := templr.PruneEmptyDirs(root); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
 	if _, err := os.Stat(empty); !os.IsNotExist(err) {
@@ -49,7 +51,7 @@ func TestPruneEmptyDirs_NestedCascade(t *testing.T) {
 	c := filepath.Join(b, "c")
 	mustMkdirAll(t, c)
 
-	if err := pruneEmptyDirs(root); err != nil {
+	if err := templr.PruneEmptyDirs(root); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
 	// All should be removed since each became empty in cascade.
@@ -69,7 +71,7 @@ func TestPruneEmptyDirs_MixedContentStopsCascade(t *testing.T) {
 	// Put a file in a/, so it must not be pruned even if b/c are empty.
 	mustWrite(t, filepath.Join(a, "keep.txt"), []byte("x"))
 
-	if err := pruneEmptyDirs(root); err != nil {
+	if err := templr.PruneEmptyDirs(root); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
 	// c and b should be gone; a should stay due to keep.txt
@@ -91,7 +93,7 @@ func TestPruneEmptyDirs_HiddenFilesPreventRemoval(t *testing.T) {
 	// A hidden file still makes the dir non-empty
 	mustWrite(t, filepath.Join(d, ".keep"), []byte{})
 
-	if err := pruneEmptyDirs(root); err != nil {
+	if err := templr.PruneEmptyDirs(root); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
 	if _, err := os.Stat(d); err != nil {
@@ -102,7 +104,7 @@ func TestPruneEmptyDirs_HiddenFilesPreventRemoval(t *testing.T) {
 func TestPruneEmptyDirs_DoesNotRemoveRoot(t *testing.T) {
 	root := t.TempDir()
 	// root is empty but should never be removed by the function
-	if err := pruneEmptyDirs(root); err != nil {
+	if err := templr.PruneEmptyDirs(root); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
 	if _, err := os.Stat(root); err != nil {
@@ -118,7 +120,7 @@ func TestPruneEmptyDirs_MultipleEmptyBranches(t *testing.T) {
 	mustMkdirAll(t, empty1)
 	mustMkdirAll(t, empty2)
 
-	if err := pruneEmptyDirs(root); err != nil {
+	if err := templr.PruneEmptyDirs(root); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
 
@@ -148,7 +150,7 @@ func TestPruneEmptyDirs_PartiallyEmptyTree(t *testing.T) {
 	mustMkdirAll(t, emptyBranch)
 	mustWrite(t, filepath.Join(fileBranch, "file.txt"), []byte("content"))
 
-	if err := pruneEmptyDirs(root); err != nil {
+	if err := templr.PruneEmptyDirs(root); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
 
@@ -178,7 +180,7 @@ func TestPruneEmptyDirs_DeepNesting(t *testing.T) {
 	}
 	mustMkdirAll(t, deep)
 
-	if err := pruneEmptyDirs(root); err != nil {
+	if err := templr.PruneEmptyDirs(root); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
 
