@@ -35,6 +35,7 @@ func getVersion() string {
 
 // Shared flag variables
 var (
+	flagConfig         string
 	flagData           string
 	flagFiles          []string
 	flagSets           []string
@@ -255,6 +256,12 @@ Examples:
   # Skip undefined variable checking (syntax only)
   templr lint --src templates/ --no-undefined-check`,
 	RunE: func(_ *cobra.Command, _ []string) error {
+		// Load configuration
+		config, err := LoadConfig(flagConfig)
+		if err != nil {
+			return fmt.Errorf("load config: %w", err)
+		}
+
 		opts := LintOptions{
 			Shared: SharedOptions{
 				Data:           flagData,
@@ -277,6 +284,10 @@ Examples:
 			Format:       flagLintFormat,
 			NoUndefCheck: flagLintNoUndefCheck,
 		}
+
+		// Apply config to options (CLI flags take precedence)
+		ApplyConfigToLintOptions(&opts, config)
+
 		return RunLintMode(opts)
 	},
 }
@@ -291,6 +302,7 @@ var versionCmd = &cobra.Command{
 
 func init() {
 	// Add persistent (global) flags to root command
+	rootCmd.PersistentFlags().StringVar(&flagConfig, "config", "", "Path to config file (default: .templr.yaml or ~/.config/templr/config.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&flagData, "data", "d", "", "Path to base JSON or YAML data file")
 	rootCmd.PersistentFlags().StringArrayVarP(&flagFiles, "f", "f", nil, "Additional values files (YAML/JSON). Repeatable.")
 	rootCmd.PersistentFlags().StringArrayVar(&flagSets, "set", nil, "key=value overrides. Repeatable. Supports dotted keys.")
