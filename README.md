@@ -68,27 +68,39 @@ templr supports rendering templates in various modes and includes a full suite o
 
 ### Rendering Modes
 
-- **Single-file mode**: Render a single template file.
+- **Single-file mode** (`render`): Render a single template file.
 
   ```bash
+  # New subcommand syntax (recommended)
+  templr render -in path/to/template.tpl -data values.yaml -out output.txt
+
+  # Legacy syntax (still supported)
   templr -in path/to/template.tpl -data values.yaml -out output.txt
   ```
 
-- **Directory mode**: Render all templates in a directory.
+- **Directory mode** (`dir`): Render all templates in a directory.
 
   ```bash
-  templr -dir path/to/templates/ -in main.tpl -data values.yaml -out out.txt
+  # New subcommand syntax (recommended)
+  templr dir --dir path/to/templates/ -in main.tpl -data values.yaml -out out.txt
+
+  # Legacy syntax (still supported)
+  templr --dir path/to/templates/ -in main.tpl -data values.yaml -out out.txt
   ```
 
-- **Walk mode**: Recursively walk through a directory and render all templates.
+- **Walk mode** (`walk`): Recursively walk through a directory and render all templates.
 
   ```bash
+  # New subcommand syntax (recommended)
+  templr walk --src path/to/templates/ --dst path/to/output/
+  templr walk --src path/to/templates/ --dst path/to/output/ --ext md --ext txt
+
+  # Legacy syntax (still supported)
   templr --walk --src path/to/templates/ --dst path/to/output/
-  ```
-
-  ```bash
   templr --walk --src path/to/templates/ --dst path/to/output/ --ext md --ext txt
   ```
+
+> **Note**: The new subcommand syntax is recommended for clarity. The legacy flag-based syntax is maintained for backward compatibility.
 
 ### Custom Template Extensions
 
@@ -106,11 +118,14 @@ This enables templr to be used easily in pipelines or shell scripts.
 #### Examples
 
 ```bash
-# Render from stdin
+# Render from stdin (new syntax)
+echo 'Hello {{ .name }}' | templr render -data values.yaml
+
+# Render from stdin (legacy syntax)
 echo 'Hello {{ .name }}' | templr -data values.yaml
 
 # Render to stdout
-templr -in template.tpl -data values.yaml > output.txt
+templr render -in template.tpl -data values.yaml > output.txt
 ```
 
 This feature is especially useful when integrating templr into automated workflows or CI/CD pipelines.
@@ -157,9 +172,13 @@ You can combine both behaviors — setting `--default-missing` for global fallba
 
 ### Versioning
 
-templr includes a built-in `-version` flag to display the current version of the binary.
+templr includes a built-in version command to display the current version of the binary.
 
 ```bash
+# New subcommand syntax
+templr version
+
+# Legacy syntax (still supported)
 templr -version
 ```
 
