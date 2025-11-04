@@ -130,9 +130,7 @@ jobs:
                 name: GoReleaser Release
                 command: |
                   # Create GitHub release and build all artifacts
-                  curl -sL https://git.io/goreleaser | GITHUB_TOKEN="${GITHUB_TOKEN}" \
-                    HOMEBREW_TAP_GITHUB_TOKEN="${HOMEBREW_TAP_GITHUB_TOKEN:-$GITHUB_TOKEN}" \
-                    bash -s -- release --clean
+                  curl -sL https://git.io/goreleaser | bash -s -- release --clean
             - run:
                 name: Build Web Playground
                 command: |

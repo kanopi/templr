@@ -21,12 +21,11 @@ before:
 builds:
   - id: templr
     main: ./main.go
-    binary: "{{ .ProjectName }}-{{ tolower .Os }}-{{ .Arch }}"
+    binary: "{{ .ProjectName }}"
     env: [CGO_ENABLED=0]
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     flags: [-trimpath,-buildmode=pie]
-    no_unique_dist_dir: true
     ldflags:
       - >-
         -s -w
@@ -38,16 +37,16 @@ builds:
       - goos: windows
         goarch: arm64
 
-# archives:
-#   - id: templr
-#     formats: ['tar.gz']
-#     name_template: "{{ .ProjectName }}-{{ tolower .Os }}-{{ .Arch }}"
-#     format_overrides:
-#       - goos: windows
-#         formats: ['zip']
-#     files:
-#       - LICENSE
-#       - README.md
+archives:
+  - id: templr
+    formats: ['tar.gz']
+    name_template: "{{ .ProjectName }}-{{ tolower .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: ['zip']
+    files:
+      - LICENSE
+      - README.md
 
 checksum:
   name_template: "SHA256SUMS"
@@ -87,16 +86,22 @@ homebrew_casks:
   - name: templr
     repository:
       owner: kanopi
-      name: homebrew-tap
+      name: homebrew-templr
       token: "{{ .Env.GITHUB_TOKEN }}"
     directory: Casks
     homepage: https://github.com/kanopi/templr
     description: "A powerful Go template rendering CLI tool with Sprig functions"
     license: MIT
     url:
-      template: "https://github.com/kanopi/templr/releases/download/{{ .Tag }}/templr-{{ tolower .Os }}-{{ .Arch }}"
+      template: "https://github.com/kanopi/templr/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
       verified: "github.com/kanopi/templr/"
     skip_upload: auto
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/templr"]
+          end
 
 dockers_v2:
   - id: templr
