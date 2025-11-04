@@ -25,6 +25,15 @@ templr is a Go-based templating CLI inspired by Helm and Go's `text/template` pa
 
 Download the latest pre-built binary for your platform from the [GitHub Releases](https://github.com/kanopi/templr/releases) page. Extract the archive and place the `templr` binary in your system PATH.
 
+### Install via Hombrew
+
+You can install templr using Homebrew by first tapping the repository and then installing the package:
+
+```bash
+brew tap kanopi/templr
+brew install templr
+```
+
 ### Install via curl
 
 templr can be installed using a one-line command that downloads and installs the latest version automatically:

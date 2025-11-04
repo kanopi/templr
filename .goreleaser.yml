@@ -1,0 +1,121 @@
+# .goreleaser.yaml for kanopi/templr
+version: 2
+project_name: templr
+
+release:
+  # Lets you push artifacts to an already-created GitHub release while testing.
+  mode: keep-existing
+  draft: false
+  prerelease: auto
+
+# 'git' block: valid keys only.
+git:
+  # Use an OSS-safe tag sort (default is -version:refname; -version:creatordate also OK).
+  tag_sort: -version:refname
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: templr
+    main: ./main.go
+    binary: "{{ .ProjectName }}"
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath,-buildmode=pie]
+    ldflags:
+      - >-
+        -s -w
+        -X main.Version={{ .Version }}
+        -X main.Commit={{ .Commit }}
+        -X main.Date={{ .Date }}
+    # Skip windows/arm64 as it's not commonly needed
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: templr
+    formats: ['tar.gz']
+    name_template: "{{ .ProjectName }}-{{ tolower .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: ['zip']
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "SHA256SUMS"
+  algorithm: sha256
+
+sboms:
+  - id: templr
+    artifacts: archive
+    documents:
+      - "{{ .ProjectName }}-{{ tolower .Os }}-{{ .Arch }}.sbom.spdx.json"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: "New Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: "Performance Improvements"
+      regexp: "^.*perf[(\\w)]*:+.*$"
+      order: 2
+    - title: "Other Changes"
+      order: 999
+
+homebrew_casks:
+  - name: templr
+    repository:
+      owner: kanopi
+      name: homebrew-templr
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/kanopi/templr
+    description: "A powerful Go template rendering CLI tool with Sprig functions"
+    license: MIT
+    url:
+      template: "https://github.com/kanopi/templr/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+      verified: "github.com/kanopi/templr/"
+    skip_upload: auto
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/templr"]
+          end
+
+dockers_v2:
+  - id: templr
+    images:
+      - docker.io/kanopi/templr
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.created: "{{ .Date }}"

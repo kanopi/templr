@@ -97,7 +97,9 @@ fi
 # Construct download URL
 ASSET="templr-${OS}-${ARCH}"
 if [ "$OS" = "windows" ]; then
-  ASSET="${ASSET}.exe"
+  ASSET="${ASSET}.zip"
+else
+  ASSET="${ASSET}.tar.gz"
 fi
 URL="https://github.com/${REPO}/releases/download/${TAG}/${ASSET}"
 DEST="${INSTALL_DIR}/templr"
@@ -106,14 +108,29 @@ if [ "$OS" = "windows" ]; then
 fi
 
 echo "⬇️  Downloading $URL"
-curl -fsSL "$URL" -o "${TMP_DIR}/templr"
+curl -fsSL "$URL" -o "${TMP_DIR}/${ASSET}"
+# Extract the downloaded archive based on its extension
+echo "📦 Extracting ${ASSET}..."
+case "$ASSET" in
+  *.tar.gz|*.tgz)
+    tar -xzf "${TMP_DIR}/${ASSET}" -C "${TMP_DIR}"
+    ;;
+  *.zip)
+    if command -v unzip >/dev/null 2>&1; then
+      unzip -q "${TMP_DIR}/${ASSET}" -d "${TMP_DIR}"
+    else
+      echo "❌ unzip not found; cannot extract ${ASSET}" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "❌ Unknown archive format for ${ASSET}" >&2
+    exit 1
+    ;;
+esac
+
 if [ "$OS" = "windows" ]; then
   mv "${TMP_DIR}/templr" "${TMP_DIR}/templr.exe"
-fi
-
-chmod +x "${TMP_DIR}/templr" || true
-if [ "$OS" = "windows" ]; then
-  chmod +x "${TMP_DIR}/templr.exe" || true
 fi
 
 if [ "$OS" = "windows" ]; then
@@ -121,6 +138,8 @@ if [ "$OS" = "windows" ]; then
 else
   SRC_FILE="${TMP_DIR}/templr"
 fi
+
+chmod +x "${SRC_FILE}" || true
 
 if [ -w "$(dirname "$DEST")" ]; then
   mv "$SRC_FILE" "$DEST"

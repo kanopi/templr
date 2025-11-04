@@ -1,8 +1,8 @@
 FROM debian:bookworm-slim
 
-ARG TARGETARCH
+ARG TARGETPLATFORM
 
-COPY .bin/templr-linux-${TARGETARCH} /usr/local/bin/templr
+COPY $TARGETPLATFORM/templr /usr/local/bin/templr
 
 RUN set +x /usr/local/bin/templr
 
