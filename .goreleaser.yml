@@ -20,7 +20,7 @@ before:
 
 builds:
   - id: templr
-    main: ./main.go
+    main: .
     binary: "{{ .ProjectName }}"
     env: [CGO_ENABLED=0]
     goos: [linux, darwin, windows]
