@@ -11,6 +11,7 @@ templr is a Go-based templating CLI inspired by Helm and Go's `text/template` pa
 
 - **Multi-file rendering**: Render single template files or entire directories of templates.
 - **Walk mode**: Recursively walk through directories and render all templates found.
+- **Lint mode**: Validate template syntax and detect undefined variables without rendering.
 - **`.Files` API**: Access files within the template directory during rendering.
 - **Strict mode**: Enforce strict template parsing and execution to catch errors early.
 - **Guards**: Use the `--guard` flag to conditionally skip rendering files based on template output.
@@ -18,6 +19,7 @@ templr is a Go-based templating CLI inspired by Helm and Go's `text/template` pa
 - **Pruning empty directories**: Automatically detect and prune directories containing only whitespace or empty output.
 - **Flexible data input**: Pass data via `--set` flags or load from JSON/YAML files with `--data`.
 - **Custom extensions**: Use the `--ext` flag to include additional template file extensions (e.g., md, txt). `.tpl` is always included by default.
+- **CI/CD friendly**: Exit codes, JSON output, and GitHub Actions integration for automated workflows.
 
 ## Installation
 
@@ -99,6 +101,37 @@ templr supports rendering templates in various modes and includes a full suite o
   templr --walk --src path/to/templates/ --dst path/to/output/
   templr --walk --src path/to/templates/ --dst path/to/output/ --ext md --ext txt
   ```
+
+- **Lint mode** (`lint`): Validate template syntax without rendering. Detect parse errors and undefined variables.
+
+  ```bash
+  # Lint a single template file
+  templr lint -i template.tpl -d values.yaml
+
+  # Lint all templates in a directory
+  templr lint --dir path/to/templates/ -d values.yaml
+
+  # Lint entire directory tree
+  templr lint --src path/to/templates/ -d values.yaml
+
+  # Fail CI pipeline on warnings (not just errors)
+  templr lint --src path/to/templates/ -d values.yaml --fail-on-warn
+
+  # Skip undefined variable checking (syntax only)
+  templr lint --src path/to/templates/ --no-undefined-check
+
+  # Output in JSON format for programmatic use
+  templr lint --src path/to/templates/ -d values.yaml --format json
+
+  # GitHub Actions format for annotations
+  templr lint --src path/to/templates/ -d values.yaml --format github-actions
+  ```
+
+  Lint mode helps catch template errors early in CI/CD pipelines by:
+  - Checking template syntax correctness (parse errors, missing `{{end}}`, etc.)
+  - Detecting undefined variable references when data is provided
+  - Reporting issues with file paths and line numbers
+  - Supporting multiple output formats (text, json, github-actions)
 
 > **Note**: The new subcommand syntax is recommended for clarity. The legacy flag-based syntax is maintained for backward compatibility.
 
