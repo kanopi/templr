@@ -354,6 +354,216 @@ output:
   color: never
 ```
 
+### Advanced Configuration Scenarios
+
+#### Team Workflow with User and Project Configs
+
+Allow individual developers to customize their experience while maintaining project standards:
+
+**Project config** (`.templr.yaml` - committed to git):
+```yaml
+# Project-wide standards
+lint:
+  required_vars:
+    - appName
+    - environment
+  disallow_functions:
+    - env
+  fail_on_undefined: true
+
+files:
+  extensions: [yaml, tpl]
+  default_templates_dir: ./templates
+```
+
+**User config** (`~/.config/templr/config.yaml` - personal preferences):
+```yaml
+# Personal preferences (don't override project security rules)
+output:
+  color: always
+  verbose: true
+
+render:
+  dry_run: true  # Preview by default, override with --dry-run=false
+```
+
+The project config enforces security and standards, while the user config allows personal workflow customization.
+
+#### Multi-Environment Setup
+
+Manage different environments with separate config files:
+
+```bash
+# Development environment
+cat > .templr.dev.yaml <<EOF
+files:
+  default_values_file: ./values.dev.yaml
+
+lint:
+  fail_on_undefined: false  # Allow undefined vars in dev
+  fail_on_warn: false
+
+output:
+  verbose: true
+EOF
+
+# Production environment
+cat > .templr.prod.yaml <<EOF
+files:
+  default_values_file: ./values.prod.yaml
+
+lint:
+  fail_on_undefined: true   # Strict in production
+  fail_on_warn: true
+  strict_mode: true
+
+render:
+  dry_run: false
+  inject_guard: true
+EOF
+
+# Use with --config flag
+templr lint --config .templr.prod.yaml --src ./templates
+```
+
+#### Configuration Precedence Example
+
+Understanding how settings override each other:
+
+**User config** (`~/.config/templr/config.yaml`):
+```yaml
+lint:
+  fail_on_warn: false        # Set to false
+  output_format: text
+```
+
+**Project config** (`.templr.yaml`):
+```yaml
+lint:
+  fail_on_warn: true         # Overrides user config
+  fail_on_undefined: true
+```
+
+**CLI flags** (highest priority):
+```bash
+# This will use fail_on_warn: false (CLI overrides all configs)
+templr lint --src ./templates --fail-on-warn=false
+```
+
+**Result**: `fail_on_warn=false` (CLI wins), `fail_on_undefined=true` (from project config), `output_format=text` (from user config).
+
+#### Migration from CLI Flags to Config File
+
+Convert existing command-line workflows to configuration files:
+
+**Before** (command-line flags):
+```bash
+templr lint \
+  --src ./templates \
+  -d ./values.yaml \
+  --fail-on-warn \
+  --fail-on-undefined \
+  --format json \
+  --strict \
+  --ext md \
+  --ext yaml
+```
+
+**After** (`.templr.yaml`):
+```yaml
+files:
+  extensions: [tpl, md, yaml]
+  default_values_file: ./values.yaml
+  default_templates_dir: ./templates
+
+lint:
+  fail_on_warn: true
+  fail_on_undefined: true
+  strict_mode: true
+  output_format: json
+```
+
+**New command** (much simpler):
+```bash
+templr lint --src ./templates
+```
+
+Benefits:
+- Commands are shorter and clearer
+- Settings are documented and version-controlled
+- Consistent across team members
+- Easy to audit and update
+
+#### Monorepo with Multiple Projects
+
+Different templating rules for different parts of a monorepo:
+
+```
+monorepo/
+├── .templr.yaml                    # Root defaults
+├── services/
+│   └── api/
+│       ├── .templr.yaml           # API-specific config
+│       └── templates/
+├── infrastructure/
+│   └── kubernetes/
+│       ├── .templr.yaml           # K8s-specific config
+│       └── templates/
+└── docs/
+    ├── .templr.yaml               # Docs-specific config
+    └── templates/
+```
+
+**Root `.templr.yaml`** (base defaults):
+```yaml
+output:
+  color: auto
+
+lint:
+  fail_on_warn: true
+```
+
+**services/api/.templr.yaml** (API overrides):
+```yaml
+files:
+  extensions: [yaml, json, tpl]
+
+lint:
+  required_vars:
+    - serviceName
+    - apiVersion
+  disallow_functions:
+    - env
+```
+
+**infrastructure/kubernetes/.templr.yaml** (K8s overrides):
+```yaml
+files:
+  extensions: [yaml, tpl]
+
+lint:
+  required_vars:
+    - namespace
+    - image
+    - replicas
+  fail_on_undefined: true
+```
+
+**docs/.templr.yaml** (docs overrides):
+```yaml
+files:
+  extensions: [md, tpl]
+
+template:
+  left_delimiter: "[["
+  right_delimiter: "]]"
+
+lint:
+  fail_on_undefined: false  # Docs can have optional vars
+```
+
+Each directory uses the appropriate config when you run templr from that location.
+
 ### Common Command-line Flags
 
 - `-in`: A single template file (single-file mode) or an entry template name when used with `--dir`.
