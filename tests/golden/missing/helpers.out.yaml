@@ -1,0 +1,31 @@
+# #templr generated
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: N/A-N/A
+  labels:
+    app: N/A-N/A
+    version: N/A
+    tier: N/A
+spec:
+  replicas: N/A
+  selector:
+    matchLabels:
+      app: N/A-N/A
+  template:
+    metadata:
+      labels:
+        app: N/A-N/A
+        version: N/A
+        tier: N/A
+    spec:
+      containers:
+      - name: N/A
+        image: N/A/N/A:N/A
+        resources:
+          limits:
+            memory: N/A
+            cpu: N/A
+          requests:
+            memory: N/A
+            cpu: N/A

@@ -1,0 +1,3 @@
+# Intentionally sparse to trigger default-missing
+# Missing: name, title, environment, database.host, status, service.name
+dummy: value

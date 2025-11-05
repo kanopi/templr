@@ -137,6 +137,15 @@ run_and_diff "missing/global.out.txt"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/def
 # safe helper (per-variable fallback)
 run_and_diff "missing/safe.out.txt"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/safe-helper/tpl.tpl" -data "$EXAMPLES_DIR/safe-helper/values.yaml"
 
+# default-missing with pipelines (edge case: missing vars in pipeline expressions)
+run_and_diff "missing/pipeline.out.txt"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/default-missing-pipeline/template.tpl" -data "$EXAMPLES_DIR/default-missing-pipeline/values.yaml" --default-missing "N/A"
+
+# default-missing with nested templates (edge case: missing vars in template definitions)
+run_and_diff "missing/nested.out.txt"   "$BIN_DIR/templr" -in "$EXAMPLES_DIR/default-missing-nested/template.tpl" -data "$EXAMPLES_DIR/default-missing-nested/values.yaml" --default-missing "N/A"
+
+# default-missing with helpers (edge case: missing vars in _helpers.tpl)
+run_and_diff "missing/helpers.out.yaml"   "$BIN_DIR/templr" -dir "$EXAMPLES_DIR/default-missing-helpers" -in "$EXAMPLES_DIR/default-missing-helpers/deployment.tpl" -data "$EXAMPLES_DIR/default-missing-helpers/values.yaml" --default-missing "N/A" -out "$OUT_DIR/missing/helpers.out.yaml"
+
 # stdin -> stdout rendering (no -out): echo template and pipe into templr
 run_and_diff "stdin/out.txt" bash -lc "echo 'Hello {{ .name }}' | $BIN_DIR/templr -data $EXAMPLES_DIR/stdin-stdout/values.yaml"
 

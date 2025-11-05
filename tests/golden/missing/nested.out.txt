@@ -1,0 +1,17 @@
+# Using templates with missing values
+metadata:
+  name: N/A
+  version: N/A
+
+config:
+  environment: N/A
+  region: N/A
+
+deep:
+  level1: N/A
+    level2:
+      value: N/A
+      nested: N/A
+
+# Direct reference to missing var after templates
+directRef: N/A

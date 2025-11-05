@@ -1,0 +1,3 @@
+# Intentionally missing most keys to test nested templates
+# Missing: app.name, app.version, environment, region, level1, level2.value, level2.nested.deep, directMissing
+present: value
