@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -167,6 +167,7 @@ type FilesAPI struct {
 	Root string
 }
 
+// Get reads a file and returns its contents as a string.
 func (f FilesAPI) Get(path string) (string, error) {
 	b, err := os.ReadFile(filepath.Join(f.Root, path))
 	if err != nil {
@@ -175,10 +176,12 @@ func (f FilesAPI) Get(path string) (string, error) {
 	return string(b), nil
 }
 
+// GetBytes reads a file and returns its contents as a byte slice.
 func (f FilesAPI) GetBytes(path string) ([]byte, error) {
 	return os.ReadFile(filepath.Join(f.Root, path))
 }
 
+// Glob returns files matching the given glob pattern relative to the root directory.
 func (f FilesAPI) Glob(pat string) ([]string, error) {
 	matches, err := filepath.Glob(filepath.Join(f.Root, pat))
 	if err != nil {

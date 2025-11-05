@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"flag"
@@ -6,9 +6,9 @@ import (
 	"os"
 )
 
-// runLegacyMode implements backward compatibility for the old flag-based CLI.
+// RunLegacyMode implements backward compatibility for the old flag-based CLI.
 // This function parses flags in the old style and routes to the appropriate command.
-func runLegacyMode() {
+func RunLegacyMode() {
 	// Reset flag state
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
@@ -43,7 +43,7 @@ func runLegacyMode() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println(getVersion())
+		fmt.Println(GetVersion())
 		return
 	}
 
@@ -97,17 +97,17 @@ func runLegacyMode() {
 	if err != nil {
 		// Use legacy error formatting for backward compatibility
 		errMsg := err.Error()
-		if contains(errMsg, "requires") || contains(errMsg, "key=value") {
+		if Contains(errMsg, "requires") || Contains(errMsg, "key=value") {
 			errf(ExitGeneral, "args", "%v", err)
-		} else if contains(errMsg, "parse") {
+		} else if Contains(errMsg, "parse") {
 			errf(ExitTemplateError, "parse", "%v", err)
-		} else if contains(errMsg, "render") || contains(errMsg, "template") || contains(errMsg, "executing") {
+		} else if Contains(errMsg, "render") || Contains(errMsg, "template") || Contains(errMsg, "executing") {
 			errf(ExitTemplateError, "render", "%v", err)
-		} else if contains(errMsg, "load data") || contains(errMsg, "data") {
+		} else if Contains(errMsg, "load data") || Contains(errMsg, "data") {
 			errf(ExitDataError, "data", "%v", err)
-		} else if contains(errMsg, "guard") {
+		} else if Contains(errMsg, "guard") {
 			errf(ExitGuardSkipped, "guard", "%v", err)
-		} else if contains(errMsg, "helper") {
+		} else if Contains(errMsg, "helper") {
 			errf(ExitTemplateError, "helpers", "%v", err)
 		} else {
 			errf(ExitGeneral, "error", "%v", err)

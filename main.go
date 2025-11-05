@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kanopi/templr/internal/app"
 	"github.com/spf13/cobra"
 )
 
@@ -12,26 +13,6 @@ import (
 var (
 	Version string // preferred explicit version (e.g., a tag)
 )
-
-// Exit codes for CI-friendly behavior.
-const (
-	ExitOK            = 0
-	ExitGeneral       = 1
-	ExitTemplateError = 2
-	ExitDataError     = 3
-	ExitStrictError   = 4
-	ExitGuardSkipped  = 5
-	ExitLintWarn      = 6 // lint found warnings (with --fail-on-warn)
-	ExitLintError     = 7 // lint found errors
-)
-
-// getVersion returns a human-friendly version string.
-func getVersion() string {
-	if Version != "" {
-		return Version
-	}
-	return "dev"
-}
 
 // Shared flag variables
 var (
@@ -129,8 +110,8 @@ Examples:
   # Render with --set overrides
   templr render -in template.tpl --set name=World -out output.txt`,
 	RunE: func(_ *cobra.Command, _ []string) error {
-		opts := RenderOptions{
-			Shared: SharedOptions{
+		opts := app.RenderOptions{
+			Shared: app.SharedOptions{
 				Data:           flagData,
 				Files:          flagFiles,
 				Sets:           flagSets,
@@ -148,7 +129,7 @@ Examples:
 			Out:     flagRenderOut,
 			Helpers: flagRenderHelpers,
 		}
-		return RunRenderMode(opts)
+		return app.RunRenderMode(opts)
 	},
 }
 
@@ -166,8 +147,8 @@ Examples:
   # Render with auto-detected entry (looks for "root" template)
   templr dir --dir templates/ -data values.yaml -out output.txt`,
 	RunE: func(_ *cobra.Command, _ []string) error {
-		opts := DirOptions{
-			Shared: SharedOptions{
+		opts := app.DirOptions{
+			Shared: app.SharedOptions{
 				Data:           flagData,
 				Files:          flagFiles,
 				Sets:           flagSets,
@@ -185,7 +166,7 @@ Examples:
 			In:  flagDirIn,
 			Out: flagDirOut,
 		}
-		return RunDirMode(opts)
+		return app.RunDirMode(opts)
 	},
 }
 
@@ -208,8 +189,8 @@ Examples:
   # Dry-run to preview changes
   templr walk --src templates/ --dst output/ --dry-run`,
 	RunE: func(_ *cobra.Command, _ []string) error {
-		opts := WalkOptions{
-			Shared: SharedOptions{
+		opts := app.WalkOptions{
+			Shared: app.SharedOptions{
 				Data:           flagData,
 				Files:          flagFiles,
 				Sets:           flagSets,
@@ -226,7 +207,7 @@ Examples:
 			Src: flagWalkSrc,
 			Dst: flagWalkDst,
 		}
-		return RunWalkMode(opts)
+		return app.RunWalkMode(opts)
 	},
 }
 
@@ -257,13 +238,13 @@ Examples:
   templr lint --src templates/ --no-undefined-check`,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		// Load configuration
-		config, err := LoadConfig(flagConfig)
+		config, err := app.LoadConfig(flagConfig)
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
 
-		opts := LintOptions{
-			Shared: SharedOptions{
+		opts := app.LintOptions{
+			Shared: app.SharedOptions{
 				Data:           flagData,
 				Files:          flagFiles,
 				Sets:           flagSets,
@@ -286,9 +267,9 @@ Examples:
 		}
 
 		// Apply config to options (CLI flags take precedence)
-		ApplyConfigToLintOptions(&opts, config)
+		app.ApplyConfigToLintOptions(&opts, config)
 
-		return RunLintMode(opts)
+		return app.RunLintMode(opts)
 	},
 }
 
@@ -296,7 +277,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(_ *cobra.Command, _ []string) {
-		fmt.Println(getVersion())
+		fmt.Println(app.GetVersion())
 	},
 }
 
@@ -346,13 +327,16 @@ func init() {
 }
 
 func main() {
+	// Set version in app package for build-time injection
+	app.Version = Version
+
 	// Check for legacy flag syntax (backward compatibility)
 	if len(os.Args) > 1 {
 		firstArg := os.Args[1]
 
 		// Handle version flags specially
 		if firstArg == "-version" || firstArg == "--version" {
-			fmt.Println(getVersion())
+			fmt.Println(app.GetVersion())
 			return
 		}
 
@@ -379,7 +363,7 @@ func main() {
 			// - templr -in file.tpl
 			// - templr --walk --src ... --dst ...
 			// - templr --dir templates/
-			runLegacyMode()
+			app.RunLegacyMode()
 			return
 		}
 	}
@@ -391,29 +375,14 @@ func main() {
 
 		// Try to determine error type from message
 		errMsg := err.Error()
-		if contains(errMsg, "parse") || contains(errMsg, "template") {
-			os.Exit(ExitTemplateError)
-		} else if contains(errMsg, "data") || contains(errMsg, "load") {
-			os.Exit(ExitDataError)
-		} else if contains(errMsg, "guard") {
-			os.Exit(ExitGuardSkipped)
+		if app.Contains(errMsg, "parse") || app.Contains(errMsg, "template") {
+			os.Exit(app.ExitTemplateError)
+		} else if app.Contains(errMsg, "data") || app.Contains(errMsg, "load") {
+			os.Exit(app.ExitDataError)
+		} else if app.Contains(errMsg, "guard") {
+			os.Exit(app.ExitGuardSkipped)
 		}
 
-		os.Exit(ExitGeneral)
+		os.Exit(app.ExitGeneral)
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-			containsSubstring(s, substr)))
-}
-
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

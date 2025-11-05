@@ -1,4 +1,5 @@
-package main
+// Package app implements the core templr CLI commands and application logic.
+package app
 
 import (
 	"bytes"
