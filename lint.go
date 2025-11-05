@@ -12,12 +12,13 @@ import (
 // LintOptions contains all configuration for lint mode
 type LintOptions struct {
 	Shared       SharedOptions
-	In           string // single file to lint
-	Dir          string // directory to lint
-	Src          string // source tree to walk and lint
-	FailOnWarn   bool   // exit with error on warnings
-	Format       string // output format: text, json, github-actions
-	NoUndefCheck bool   // skip undefined variable checking
+	In           string  // single file to lint
+	Dir          string  // directory to lint
+	Src          string  // source tree to walk and lint
+	FailOnWarn   bool    // exit with error on warnings
+	Format       string  // output format: text, json, github-actions
+	NoUndefCheck bool    // skip undefined variable checking
+	Config       *Config // configuration from file
 }
 
 // LintIssue represents a single linting issue
@@ -51,6 +52,11 @@ func RunLintMode(opts LintOptions) error {
 		if err != nil {
 			return fmt.Errorf("load data: %w", err)
 		}
+	}
+
+	// Check required variables if configured
+	if opts.Config != nil && len(opts.Config.Lint.RequiredVars) > 0 && values != nil {
+		checkRequiredVars(values, opts.Config.Lint.RequiredVars, result)
 	}
 
 	// Determine which mode to use
@@ -89,6 +95,11 @@ func RunLintMode(opts LintOptions) error {
 
 // lintSingleFile lints a single template file
 func lintSingleFile(path string, values map[string]any, opts LintOptions, result *LintResult) error {
+	// Check if file should be excluded
+	if opts.Config != nil && shouldExcludeFile(path, opts.Config.Lint.Exclude) {
+		return nil
+	}
+
 	// Read the file
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -117,9 +128,14 @@ func lintSingleFile(path string, values map[string]any, opts LintOptions, result
 		return nil
 	}
 
+	// Check for disallowed functions
+	if opts.Config != nil && len(opts.Config.Lint.DisallowFunctions) > 0 {
+		checkDisallowedFunctions(tpl, path, opts.Config.Lint.DisallowFunctions, result)
+	}
+
 	// If we have values and undefined checking is enabled, check for undefined variables
 	if !opts.NoUndefCheck && values != nil {
-		checkUndefinedVariables(tpl, path, values, result)
+		checkUndefinedVariables(tpl, path, values, opts, result)
 	}
 
 	return nil
@@ -196,7 +212,12 @@ func lintDirectory(dirPath string, values map[string]any, opts LintOptions, resu
 					break
 				}
 			}
-			checkUndefinedVariables(tmpl, filePath, values, result)
+			checkUndefinedVariables(tmpl, filePath, values, opts, result)
+
+			// Check for disallowed functions in each template
+			if opts.Config != nil && len(opts.Config.Lint.DisallowFunctions) > 0 {
+				checkDisallowedFunctions(tmpl, filePath, opts.Config.Lint.DisallowFunctions, result)
+			}
 		}
 	}
 
@@ -239,7 +260,7 @@ func lintWalk(srcDir string, values map[string]any, opts LintOptions, result *Li
 }
 
 // checkUndefinedVariables checks for undefined variables in a template
-func checkUndefinedVariables(tpl *template.Template, path string, values map[string]any, result *LintResult) {
+func checkUndefinedVariables(tpl *template.Template, path string, values map[string]any, opts LintOptions, result *LintResult) {
 	if tpl.Tree == nil {
 		return
 	}
@@ -247,21 +268,34 @@ func checkUndefinedVariables(tpl *template.Template, path string, values map[str
 	// Extract all variable references from the template
 	vars := extractVariables(tpl.Tree)
 
+	// Determine severity based on config
+	severity := "warn"
+	if opts.Config != nil && opts.Config.Lint.FailOnUndefined {
+		severity = "error"
+	}
+
 	// Check each variable against the values
 	for _, varPath := range vars {
 		if !checkVariableExists(varPath, values) {
 			result.Issues = append(result.Issues, LintIssue{
-				Severity: "warn",
+				Severity: severity,
 				Category: "undefined",
 				File:     path,
 				Message:  fmt.Sprintf("variable %s is undefined", varPath),
 			})
-			result.Warns++
+
+			if severity == "error" {
+				result.Errors++
+			} else {
+				result.Warns++
+			}
 		}
 	}
 }
 
 // extractVariables extracts all variable references from a template AST
+//
+//nolint:dupl // Similar to extractFunctionCalls but extracts different data
 func extractVariables(tree *parse.Tree) []string {
 	vars := make(map[string]bool)
 
@@ -528,4 +562,131 @@ func printWarning(msg string, noColor bool) {
 
 func printSuccess(msg string, noColor bool) {
 	fmt.Println(colorize(msg, "green", noColor))
+}
+
+// checkRequiredVars ensures that all required variables are present in values
+func checkRequiredVars(values map[string]any, required []string, result *LintResult) {
+	for _, varPath := range required {
+		if !checkVariableExists(varPath, values) {
+			result.Issues = append(result.Issues, LintIssue{
+				Severity: "error",
+				Category: "required",
+				File:     "",
+				Message:  fmt.Sprintf("required variable %s is not defined", varPath),
+			})
+			result.Errors++
+		}
+	}
+}
+
+// shouldExcludeFile checks if a file path matches any exclude patterns
+func shouldExcludeFile(path string, patterns []string) bool {
+	for _, pattern := range patterns {
+		matched, err := filepath.Match(pattern, filepath.Base(path))
+		if err == nil && matched {
+			return true
+		}
+		// Also try matching against full path
+		matched, err = filepath.Match(pattern, path)
+		if err == nil && matched {
+			return true
+		}
+	}
+	return false
+}
+
+// checkDisallowedFunctions inspects template AST for disallowed function calls
+func checkDisallowedFunctions(tpl *template.Template, path string, disallowed []string, result *LintResult) {
+	if tpl.Tree == nil || len(disallowed) == 0 {
+		return
+	}
+
+	// Create a map for faster lookup
+	disallowMap := make(map[string]bool)
+	for _, fn := range disallowed {
+		disallowMap[fn] = true
+	}
+
+	// Walk the AST and find function calls
+	funcs := extractFunctionCalls(tpl.Tree)
+
+	for _, fn := range funcs {
+		if disallowMap[fn] {
+			result.Issues = append(result.Issues, LintIssue{
+				Severity: "error",
+				Category: "function",
+				File:     path,
+				Message:  fmt.Sprintf("disallowed function %q is used", fn),
+			})
+			result.Errors++
+		}
+	}
+}
+
+// extractFunctionCalls extracts all function calls from a template AST
+//
+//nolint:dupl // Similar to extractVariables but extracts different data
+func extractFunctionCalls(tree *parse.Tree) []string {
+	funcs := make(map[string]bool)
+
+	var walk func(node parse.Node)
+	walk = func(node parse.Node) {
+		if node == nil {
+			return
+		}
+
+		switch n := node.(type) {
+		case *parse.ActionNode:
+			extractFuncsFromPipe(n.Pipe, funcs)
+		case *parse.IfNode:
+			extractFuncsFromPipe(n.Pipe, funcs)
+			walkList(n.List, walk)
+			if n.ElseList != nil {
+				walkList(n.ElseList, walk)
+			}
+		case *parse.RangeNode:
+			extractFuncsFromPipe(n.Pipe, funcs)
+			walkList(n.List, walk)
+			if n.ElseList != nil {
+				walkList(n.ElseList, walk)
+			}
+		case *parse.WithNode:
+			extractFuncsFromPipe(n.Pipe, funcs)
+			walkList(n.List, walk)
+			if n.ElseList != nil {
+				walkList(n.ElseList, walk)
+			}
+		case *parse.ListNode:
+			walkList(n, walk)
+		case *parse.TemplateNode:
+			if n.Pipe != nil {
+				extractFuncsFromPipe(n.Pipe, funcs)
+			}
+		}
+	}
+
+	walk(tree.Root)
+
+	// Convert map to slice
+	result := make([]string, 0, len(funcs))
+	for fn := range funcs {
+		result = append(result, fn)
+	}
+	return result
+}
+
+// extractFuncsFromPipe extracts function names from a pipe
+func extractFuncsFromPipe(pipe *parse.PipeNode, funcs map[string]bool) {
+	if pipe == nil {
+		return
+	}
+
+	for _, cmd := range pipe.Cmds {
+		if len(cmd.Args) > 0 {
+			// First arg might be a function identifier
+			if ident, ok := cmd.Args[0].(*parse.IdentifierNode); ok {
+				funcs[ident.Ident] = true
+			}
+		}
+	}
 }

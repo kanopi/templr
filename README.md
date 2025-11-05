@@ -163,6 +163,197 @@ templr render -in template.tpl -data values.yaml > output.txt
 
 This feature is especially useful when integrating templr into automated workflows or CI/CD pipelines.
 
+## Configuration File
+
+templr supports configuration files to set defaults and enforce policies across your project or for your user account. This is especially useful for:
+
+- Setting up lint rules for CI/CD
+- Enforcing security policies (disallowing dangerous functions)
+- Defining project-specific file extensions and paths
+- Maintaining consistent settings across team members
+
+### Configuration File Locations
+
+templr automatically loads configuration from these locations (in order of precedence):
+
+1. **Specified config** via `--config` flag (highest priority)
+2. **Project config**: `.templr.yaml` in the current directory
+3. **User config**: `~/.config/templr/config.yaml`
+4. **Built-in defaults** (lowest priority)
+
+CLI flags always override configuration file settings.
+
+### Example Configuration
+
+Create a `.templr.yaml` file in your project root:
+
+```yaml
+# File handling
+files:
+  extensions:
+    - tpl
+    - md      # Treat .md files as templates
+    - yaml    # Treat .yaml files as templates
+
+  default_values_file: ./values.yaml
+  default_templates_dir: ./templates
+
+# Template engine
+template:
+  left_delimiter: "{{"
+  right_delimiter: "}}"
+  default_missing: "<no value>"
+
+# Linting rules
+lint:
+  # Fail CI builds on warnings
+  fail_on_warn: true
+
+  # Treat undefined variables as errors (not warnings)
+  fail_on_undefined: true
+
+  # Enable strict mode by default
+  strict_mode: true
+
+  # Files to exclude from linting
+  exclude:
+    - "_*.tpl"          # Helper templates
+    - "**/test/**"      # Test fixtures
+    - "**/*.backup.*"   # Backup files
+
+  # Block dangerous functions
+  disallow_functions:
+    - env               # No environment variable access
+    - exec              # No command execution
+
+  # Require these variables in all templates
+  required_vars:
+    - name
+    - version
+    - environment
+
+# Rendering defaults
+render:
+  dry_run: false
+  inject_guard: true
+  guard_string: "#templr generated"
+  prune_empty_dirs: true
+
+# Output formatting
+output:
+  color: auto           # auto, always, never
+  verbose: false
+```
+
+### Configuration Options Reference
+
+#### Files Configuration
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `extensions` | array | Additional file extensions to treat as templates | `["tpl"]` |
+| `default_templates_dir` | string | Default templates directory | `./templates` |
+| `default_output_dir` | string | Default output directory | `./out` |
+| `default_values_file` | string | Default values file path | `./values.yaml` |
+| `helpers` | array | Helper template patterns | `["_helpers*.tpl"]` |
+
+#### Template Configuration
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `left_delimiter` | string | Left template delimiter | `{{` |
+| `right_delimiter` | string | Right template delimiter | `}}` |
+| `default_missing` | string | String to render for missing values | `<no value>` |
+
+#### Lint Configuration
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `fail_on_warn` | bool | Exit with error code on warnings | `false` |
+| `fail_on_undefined` | bool | Treat undefined variables as errors | `false` |
+| `strict_mode` | bool | Enable strict mode by default | `false` |
+| `output_format` | string | Default output format (text, json, github-actions) | `text` |
+| `exclude` | array | File patterns to exclude from linting | `[]` |
+| `disallow_functions` | array | Template functions to block | `[]` |
+| `required_vars` | array | Variables that must be present | `[]` |
+| `no_undefined_check` | bool | Skip undefined variable checking | `false` |
+
+#### Render Configuration
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `dry_run` | bool | Preview changes without writing | `false` |
+| `inject_guard` | bool | Auto-inject guard comment | `true` |
+| `guard_string` | string | Guard string for overwrite protection | `#templr generated` |
+| `prune_empty_dirs` | bool | Remove empty directories after rendering | `true` |
+
+#### Output Configuration
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `color` | string | Color output (auto, always, never) | `auto` |
+| `verbose` | bool | Verbose output | `false` |
+| `quiet` | bool | Minimal output | `false` |
+
+### Configuration Use Cases
+
+#### Security-Focused Project
+
+Block access to dangerous functions:
+
+```yaml
+lint:
+  disallow_functions:
+    - env                # No environment access
+    - exec               # No command execution
+    - getHostByName      # No DNS lookups
+  fail_on_warn: true
+  strict_mode: true
+```
+
+#### Kubernetes Templates
+
+```yaml
+files:
+  extensions: [yaml, tpl]
+  default_templates_dir: ./k8s/templates
+  default_values_file: ./k8s/values.yaml
+
+lint:
+  required_vars:
+    - namespace
+    - image
+    - replicas
+  fail_on_undefined: true
+```
+
+#### Documentation Generator
+
+```yaml
+files:
+  extensions: [md, tpl, txt]
+  default_templates_dir: ./docs/templates
+
+template:
+  left_delimiter: "<%"
+  right_delimiter: "%>"
+
+lint:
+  fail_on_undefined: false  # Docs may have optional variables
+```
+
+#### CI/CD Pipeline
+
+```yaml
+lint:
+  fail_on_warn: true
+  fail_on_undefined: true
+  output_format: github-actions
+
+output:
+  color: never
+```
+
 ### Common Command-line Flags
 
 - `-in`: A single template file (single-file mode) or an entry template name when used with `--dir`.

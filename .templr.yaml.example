@@ -1,0 +1,93 @@
+# Example .templr.yaml configuration file
+# Copy this to .templr.yaml in your project root or ~/.config/templr/config.yaml for user-wide settings
+
+# File handling configuration
+files:
+  # Additional file extensions to treat as templates (beyond default .tpl)
+  extensions:
+    - tpl    # Always included by default
+    - md     # Markdown templates
+    - yaml   # YAML templates
+    - txt    # Text templates
+
+  # Default paths (can be overridden by CLI flags)
+  default_templates_dir: ./templates
+  default_output_dir: ./out
+  default_values_file: ./values.yaml
+
+  # Helper template patterns
+  helpers:
+    - "_helpers*.tpl"
+    - "_*.tpl"
+
+# Template engine settings
+template:
+  # Custom delimiters (useful if {{ }} conflicts with other systems)
+  left_delimiter: "{{"
+  right_delimiter: "}}"
+
+  # Value to render for missing/undefined variables
+  default_missing: "<no value>"
+
+# Linting configuration
+lint:
+  # Fail on warnings (exit code 6) instead of just reporting them
+  fail_on_warn: false
+
+  # Treat undefined variables as errors instead of warnings
+  fail_on_undefined: false
+
+  # Enable strict mode by default
+  strict_mode: false
+
+  # Default output format for lint results
+  # Options: text, json, github-actions
+  output_format: text
+
+  # Skip undefined variable checking by default
+  no_undefined_check: false
+
+  # File patterns to exclude from linting
+  exclude:
+    - "**/_*.tpl"        # Helper templates
+    - "**/test/**"       # Test fixtures
+    - "**/*.backup.tpl"  # Backup files
+    - "**/.*"            # Hidden files
+
+  # Disallowed functions (for security/safety)
+  disallow_functions:
+    - env                # Block environment variable access
+    - exec               # Block command execution
+    # - getHostByName    # Block DNS lookups
+
+  # Required variables that must be present in values
+  required_vars:
+    - name
+    - version
+    # - environment
+    # - namespace
+
+# Rendering defaults
+render:
+  # Preview changes without writing files
+  dry_run: false
+
+  # Auto-inject guard comment into rendered files
+  inject_guard: true
+
+  # Guard string to prevent accidental overwrites
+  guard_string: "#templr generated"
+
+  # Automatically remove empty directories after rendering
+  prune_empty_dirs: true
+
+# Output formatting
+output:
+  # Color output: auto, always, never
+  color: auto
+
+  # Verbose output
+  verbose: false
+
+  # Quiet mode (minimal output)
+  quiet: false
