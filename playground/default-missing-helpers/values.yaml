@@ -1,0 +1,3 @@
+# Intentionally missing most values to test helpers with default-missing
+# Missing: Release.Name, Chart.Name, Chart.Version, tier, image.*, resources.*, replicas, container.name
+present: dummy

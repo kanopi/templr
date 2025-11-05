@@ -1,0 +1,25 @@
+# Pipeline Edge Cases with default-missing
+#
+# Note: Pipelines with missing vars that don't have 'default' will fail
+# because pipeline functions execute before default-missing replacement.
+# Use Sprig's 'default' function in the pipeline for missing values.
+
+# Direct missing var (no pipeline) - works with default-missing
+Name: N/A
+
+# Pipeline with Sprig default (default wins over global default-missing)
+DbHost: localhost
+
+# Pipeline with Sprig default then transformations
+Status: "UNKNOWN"
+
+# Nested missing with default in pipeline
+ServiceName: app
+
+# Mixed: some values present, some with defaults
+Environment: dev
+Region: us-east-1
+
+# Direct nested missing (works with default-missing)
+ConfigPath: N/A
+LogLevel: N/A
