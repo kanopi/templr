@@ -15,7 +15,8 @@
 8. [Guards and Safe Access](#8-guards-and-safe-access)
 9. [Comments](#9-comments)
 10. [Putting It All Together](#10-putting-it-all-together)
-11. [Summary](#summary)
+11. [Configuration Files and Project Setup](#11-configuration-files-and-project-setup)
+12. [Summary](#summary)
 
 ---
 
@@ -333,6 +334,312 @@ No markdown files found.
 
 ---
 
+## 11. Configuration Files and Project Setup
+
+### Overview
+
+While templr can be used with command-line flags, using configuration files (`.templr.yaml`) makes your projects more maintainable, especially for teams and CI/CD pipelines.
+
+### Configuration File Locations
+
+templr automatically looks for configuration in three places (in order of precedence):
+
+1. **Specified config** via `--config` flag (highest priority)
+2. **Project config**: `.templr.yaml` in the current directory
+3. **User config**: `~/.config/templr/config.yaml`
+4. **Built-in defaults** (lowest priority)
+
+CLI flags always override configuration file settings.
+
+### Basic Configuration Example
+
+Create a `.templr.yaml` file in your project root:
+
+```yaml
+# File handling
+files:
+  extensions:
+    - tpl
+    - md      # Also treat .md files as templates
+  default_values_file: ./values.yaml
+  default_templates_dir: ./templates
+
+# Template engine settings
+template:
+  left_delimiter: "{{"
+  right_delimiter: "}}"
+  default_missing: "<no value>"
+
+# Linting rules
+lint:
+  fail_on_warn: true
+  fail_on_undefined: true
+  required_vars:
+    - name
+    - version
+
+# Rendering behavior
+render:
+  inject_guard: true
+  guard_string: "#templr generated"
+  prune_empty_dirs: true
+```
+
+### How Configuration Affects Template Rendering
+
+#### Custom Delimiters
+
+If you need different delimiters (e.g., to avoid conflicts with other template systems):
+
+```yaml
+template:
+  left_delimiter: "[["
+  right_delimiter: "]]"
+```
+
+Now your templates use `[[ ]]` instead of `{{ }}`:
+
+```gotmpl
+Hello, [[ .Name ]]!
+```
+
+#### Default Missing Values
+
+Control what appears when a variable is undefined:
+
+```yaml
+template:
+  default_missing: "N/A"
+```
+
+Template:
+```gotmpl
+Email: {{ .User.Email }}
+```
+
+If `.User.Email` is not defined, it renders as `Email: N/A` instead of `Email: <no value>`.
+
+#### File Extensions
+
+Process multiple file types as templates:
+
+```yaml
+files:
+  extensions:
+    - tpl
+    - md
+    - yaml
+```
+
+Now templr will process `.tpl`, `.md`, and `.yaml` files as templates when using walk mode.
+
+### Project Structure Best Practices
+
+#### Recommended Layout
+
+```
+myproject/
+├── .templr.yaml              # Project configuration
+├── values.yaml               # Default values
+├── values.dev.yaml           # Development overrides
+├── values.prod.yaml          # Production overrides
+├── templates/
+│   ├── _helpers.tpl          # Shared helper templates
+│   ├── config.yaml.tpl
+│   ├── deployment.yaml.tpl
+│   └── service.yaml.tpl
+└── output/                   # Generated files
+```
+
+#### Helper Templates Organization
+
+Use underscore prefix for helper templates that shouldn't be rendered directly:
+
+```yaml
+# .templr.yaml
+lint:
+  exclude:
+    - "_*.tpl"                # Don't lint helper templates
+    - "**/test/**"            # Don't lint test fixtures
+```
+
+**_helpers.tpl:**
+```gotmpl
+{{- define "app.fullname" -}}
+{{ .Release.Name }}-{{ .Chart.Name }}
+{{- end -}}
+
+{{- define "app.labels" -}}
+app: {{ .Release.Name }}
+version: {{ .Chart.Version }}
+{{- end -}}
+```
+
+**deployment.yaml.tpl:**
+```gotmpl
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "app.fullname" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .replicas }}
+```
+
+### Environment-Specific Configurations
+
+#### Development Setup
+
+**.templr.dev.yaml:**
+```yaml
+files:
+  default_values_file: ./values.dev.yaml
+
+lint:
+  fail_on_undefined: false    # Allow undefined vars in dev
+  fail_on_warn: false
+
+output:
+  verbose: true               # More output for debugging
+```
+
+Usage:
+```bash
+templr walk --config .templr.dev.yaml --src templates --dst output
+```
+
+#### Production Setup
+
+**.templr.prod.yaml:**
+```yaml
+files:
+  default_values_file: ./values.prod.yaml
+
+lint:
+  fail_on_undefined: true     # Strict validation
+  fail_on_warn: true
+  strict_mode: true
+  required_vars:              # Ensure critical vars exist
+    - environment
+    - version
+    - database_url
+
+render:
+  inject_guard: true          # Protect generated files
+```
+
+Usage:
+```bash
+# Always lint before rendering in production
+templr lint --config .templr.prod.yaml --src templates
+templr walk --config .templr.prod.yaml --src templates --dst output
+```
+
+### Team Workflow Configuration
+
+#### Project Standards (committed to git)
+
+**.templr.yaml:**
+```yaml
+# Enforced for all team members
+lint:
+  required_vars:
+    - projectName
+    - environment
+  disallow_functions:
+    - env                     # No environment variable access
+  fail_on_undefined: true
+
+files:
+  extensions: [yaml, tpl]
+```
+
+#### Personal Preferences (not committed)
+
+**~/.config/templr/config.yaml:**
+```yaml
+# Personal developer preferences
+output:
+  color: always
+  verbose: true
+
+render:
+  dry_run: true               # Preview changes by default
+```
+
+The team gets consistent validation and security, while individuals can customize their local experience.
+
+### Linting and Validation
+
+Configuration files enable powerful validation:
+
+```yaml
+lint:
+  # Catch issues early
+  fail_on_warn: true
+  fail_on_undefined: true
+  strict_mode: true
+
+  # Security: Block dangerous functions
+  disallow_functions:
+    - env
+    - getHostByName
+
+  # Ensure required data exists
+  required_vars:
+    - appName
+    - version
+    - environment
+
+  # Skip helper and test files
+  exclude:
+    - "_*.tpl"
+    - "**/test/**"
+```
+
+Run in CI/CD:
+```bash
+# Fail the build if templates have issues
+templr lint --src ./templates -d ./values.yaml
+```
+
+### Migration from CLI Flags
+
+**Before** (long command):
+```bash
+templr walk \
+  --src ./templates \
+  --dst ./output \
+  -d ./values.yaml \
+  --strict \
+  --ext md \
+  --ext yaml \
+  --guard "#generated" \
+  --inject-guard
+```
+
+**After** (with `.templr.yaml`):
+```yaml
+files:
+  extensions: [tpl, md, yaml]
+  default_values_file: ./values.yaml
+  default_templates_dir: ./templates
+  default_output_dir: ./output
+
+render:
+  strict: true
+  inject_guard: true
+  guard_string: "#generated"
+```
+
+**New command** (simple and clear):
+```bash
+templr walk --src templates --dst output
+```
+
+---
+
 ## Summary
 
 - Use `{{ .Variable }}` to access data.
@@ -341,6 +648,9 @@ No markdown files found.
 - Use helpers for string and data manipulation.
 - Define variables with `{{ $var := ... }}`.
 - Guard against missing data with `if` or `default`.
+- **Use `.templr.yaml` configuration files for consistent project settings**.
+- **Organize templates with helper files and clear directory structure**.
+- **Validate templates with lint mode before rendering**.
 
 For more examples and advanced usage, explore the templr repository and CLI documentation.
 
