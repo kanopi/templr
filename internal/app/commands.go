@@ -55,6 +55,17 @@ type RenderOptions struct {
 	Helpers string
 }
 
+// SchemaOptions contains options for schema commands
+type SchemaOptions struct {
+	Shared     SharedOptions
+	SchemaPath string
+	Mode       string
+	Output     string
+	Required   string
+	AdditionalProps bool
+	Format     string
+}
+
 // buildFuncMap creates the template function map with Sprig and custom functions.
 // The returned function map includes a closure reference to tpl for the include function.
 func buildFuncMap(tpl **template.Template) template.FuncMap {
@@ -671,4 +682,103 @@ func RunRenderMode(opts RenderOptions) error {
 		return err
 	}
 	return nil
+}
+
+// RunSchemaValidate validates data against a schema
+func RunSchemaValidate(opts SchemaOptions, config *Config) error {
+	// Load and merge data
+	vals, err := buildValues(".", opts.Shared)
+	if err != nil {
+		return err
+	}
+
+	// Determine schema path
+	schemaPath := opts.SchemaPath
+	if schemaPath == "" {
+		// Try auto-discovery
+		schemaPath = FindSchemaFile(config.Schema.Path)
+		if schemaPath == "" {
+			return fmt.Errorf("no schema file found (checked: %s, .templr.schema.yml, .templr/schema.yml)", config.Schema.Path)
+		}
+	}
+
+	// Determine mode
+	mode := opts.Mode
+	if mode == "" {
+		mode = config.Schema.Mode
+	}
+	if mode == "" {
+		mode = "warn"
+	}
+
+	// Validate
+	result, err := ValidateWithSchema(vals, schemaPath, mode)
+	if err != nil {
+		return fmt.Errorf("schema validation failed: %w", err)
+	}
+
+	// Format and print errors
+	if !result.Passed {
+		output := FormatSchemaErrors(result, mode)
+		fmt.Fprint(os.Stderr, output)
+
+		if mode != "warn" {
+			return fmt.Errorf("validation failed")
+		}
+
+		fmt.Printf("✓ Validation complete (%d warning%s)\n", len(result.Errors), pluralize(len(result.Errors)))
+		return nil
+	}
+
+	fmt.Println("✓ Validation passed")
+	return nil
+}
+
+// RunSchemaGenerate generates a schema from data
+func RunSchemaGenerate(opts SchemaOptions, config *Config) error {
+	// Load and merge data
+	vals, err := buildValues(".", opts.Shared)
+	if err != nil {
+		return err
+	}
+
+	// Build generation config
+	genConfig := config.Schema.Generate
+	if opts.Required != "" {
+		genConfig.Required = opts.Required
+	}
+	genConfig.AdditionalProps = opts.AdditionalProps
+
+	// Generate schema
+	schema, err := GenerateSchema(vals, genConfig)
+	if err != nil {
+		return fmt.Errorf("generate schema: %w", err)
+	}
+
+	// Marshal to YAML
+	schemaBytes, err := yaml.Marshal(schema)
+	if err != nil {
+		return fmt.Errorf("marshal schema: %w", err)
+	}
+
+	// Write output
+	if opts.Output != "" {
+		if err := os.WriteFile(opts.Output, schemaBytes, 0644); err != nil {
+			return fmt.Errorf("write schema file: %w", err)
+		}
+		fmt.Printf("Generated schema -> %s\n", opts.Output)
+	} else {
+		// Print to stdout
+		fmt.Print(string(schemaBytes))
+	}
+
+	return nil
+}
+
+// pluralize returns "s" if count is not 1
+func pluralize(count int) string {
+	if count == 1 {
+		return ""
+	}
+	return "s"
 }

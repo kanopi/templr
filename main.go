@@ -54,6 +54,13 @@ var (
 	flagLintFailOnWarn   bool
 	flagLintFormat       string
 	flagLintNoUndefCheck bool
+
+	// schema command
+	flagSchemaPath          string
+	flagSchemaMode          string
+	flagSchemaOutput        string
+	flagSchemaRequired      string
+	flagSchemaAdditionalProps bool
 )
 
 var rootCmd = &cobra.Command{
@@ -273,6 +280,128 @@ Examples:
 	},
 }
 
+var schemaCmd = &cobra.Command{
+	Use:   "schema",
+	Short: "Schema validation and generation commands",
+	Long: `Validate data against schemas or generate schemas from data.
+
+Subcommands:
+  validate  Validate data files against a schema
+  generate  Generate a schema from data files`,
+}
+
+var schemaValidateCmd = &cobra.Command{
+	Use:   "validate",
+	Short: "Validate data against a schema",
+	Long: `Validate merged data files against a YAML schema.
+
+The schema file can be specified via:
+  1. --schema flag (highest priority)
+  2. schema.path in .templr.yaml config
+  3. Auto-discovery: .templr.schema.yml or .templr/schema.yml
+
+Examples:
+  # Validate using auto-discovered schema
+  templr schema validate
+
+  # Validate with explicit schema
+  templr schema validate -schema my-schema.yml
+
+  # Validate with specific data files
+  templr schema validate -data values.yaml -schema schema.yml
+
+  # Fail on errors (vs warnings)
+  templr schema validate --schema-mode error`,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		// Load config
+		config, err := app.LoadConfig(flagConfig)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[templr:error] load config: %v\n", err)
+			os.Exit(app.ExitGeneral)
+		}
+
+		opts := app.SchemaOptions{
+			Shared: app.SharedOptions{
+				Data:           flagData,
+				Files:          flagFiles,
+				Sets:           flagSets,
+				Strict:         flagStrict,
+				DryRun:         flagDryRun,
+				Guard:          flagGuard,
+				InjectGuard:    flagInjectGuard,
+				DefaultMissing: flagDefaultMissing,
+				NoColor:        flagNoColor,
+				Ldelim:         flagLdelim,
+				Rdelim:         flagRdelim,
+				ExtraExts:      flagExtraExts,
+			},
+			SchemaPath: flagSchemaPath,
+			Mode:       flagSchemaMode,
+		}
+
+		if err := app.RunSchemaValidate(opts, config); err != nil {
+			fmt.Fprintf(os.Stderr, "[templr:error] %v\n", err)
+			os.Exit(app.ExitSchemaError)
+		}
+		return nil
+	},
+}
+
+var schemaGenerateCmd = &cobra.Command{
+	Use:   "generate",
+	Short: "Generate a schema from data files",
+	Long: `Generate a YAML schema by analyzing your data files.
+
+The generated schema will infer types and structure from your values.
+
+Examples:
+  # Generate schema to stdout
+  templr schema generate -data values.yaml
+
+  # Generate schema to file
+  templr schema generate -data values.yaml -o schema.yml
+
+  # Mark all fields as required
+  templr schema generate -data values.yaml --required all -o schema.yml
+
+  # Disallow additional properties
+  templr schema generate -data values.yaml --additional-props=false -o schema.yml`,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		// Load config
+		config, err := app.LoadConfig(flagConfig)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[templr:error] load config: %v\n", err)
+			os.Exit(app.ExitGeneral)
+		}
+
+		opts := app.SchemaOptions{
+			Shared: app.SharedOptions{
+				Data:           flagData,
+				Files:          flagFiles,
+				Sets:           flagSets,
+				Strict:         flagStrict,
+				DryRun:         flagDryRun,
+				Guard:          flagGuard,
+				InjectGuard:    flagInjectGuard,
+				DefaultMissing: flagDefaultMissing,
+				NoColor:        flagNoColor,
+				Ldelim:         flagLdelim,
+				Rdelim:         flagRdelim,
+				ExtraExts:      flagExtraExts,
+			},
+			Output:          flagSchemaOutput,
+			Required:        flagSchemaRequired,
+			AdditionalProps: flagSchemaAdditionalProps,
+		}
+
+		if err := app.RunSchemaGenerate(opts, config); err != nil {
+			fmt.Fprintf(os.Stderr, "[templr:error] %v\n", err)
+			os.Exit(app.ExitGeneral)
+		}
+		return nil
+	},
+}
+
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
@@ -322,8 +451,20 @@ func init() {
 	lintCmd.Flags().StringVar(&flagLintFormat, "format", "text", "Output format: text, json, github-actions")
 	lintCmd.Flags().BoolVar(&flagLintNoUndefCheck, "no-undefined-check", false, "Skip undefined variable detection")
 
+	// Schema validate command flags
+	schemaValidateCmd.Flags().StringVar(&flagSchemaPath, "schema", "", "Path to schema file (default: auto-discover)")
+	schemaValidateCmd.Flags().StringVar(&flagSchemaMode, "schema-mode", "", "Validation mode: warn|error|strict (default from config or warn)")
+
+	// Schema generate command flags
+	schemaGenerateCmd.Flags().StringVarP(&flagSchemaOutput, "output", "o", "", "Output schema file (default: stdout)")
+	schemaGenerateCmd.Flags().StringVar(&flagSchemaRequired, "required", "", "Mark fields as required: all|none|auto (default from config or auto)")
+	schemaGenerateCmd.Flags().BoolVar(&flagSchemaAdditionalProps, "additional-props", true, "Allow additional properties in schema")
+
+	// Add schema subcommands
+	schemaCmd.AddCommand(schemaValidateCmd, schemaGenerateCmd)
+
 	// Add subcommands
-	rootCmd.AddCommand(renderCmd, dirCmd, walkCmd, lintCmd, versionCmd)
+	rootCmd.AddCommand(renderCmd, dirCmd, walkCmd, lintCmd, schemaCmd, versionCmd)
 }
 
 func main() {
@@ -352,6 +493,7 @@ func main() {
 			"dir":        true,
 			"walk":       true,
 			"lint":       true,
+			"schema":     true,
 			"version":    true,
 			"help":       true,
 			"completion": true,
