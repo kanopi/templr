@@ -32,7 +32,7 @@ func TestDetectMimeType(t *testing.T) {
 
 			// Create test file
 			testFile := filepath.Join(tmpDir, tt.filename)
-			if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 
@@ -40,11 +40,11 @@ func TestDetectMimeType(t *testing.T) {
 			out := filepath.Join(tmpDir, "out.txt")
 
 			tplContent := "{{ .Files.AsDataURL \"" + tt.filename + "\" \"\" }}"
-			if err := os.WriteFile(tpl, []byte(tplContent), 0644); err != nil {
+			if err := os.WriteFile(tpl, []byte(tplContent), 0o644); err != nil {
 				t.Fatal(err)
 			}
 
-			run(t, bin, "render", "-i", tpl, "-o", out, "--inject-guard=false")
+			_, _, _ = run(t, bin, "render", "-i", tpl, "-o", out, "--inject-guard=false")
 
 			result, err := os.ReadFile(out)
 			if err != nil {
@@ -57,11 +57,4 @@ func TestDetectMimeType(t *testing.T) {
 			}
 		})
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

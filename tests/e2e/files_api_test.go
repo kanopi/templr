@@ -11,7 +11,7 @@ import (
 func TestFilesAPI_Exists(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("content"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -30,7 +30,7 @@ func TestFilesAPI_Stat(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.txt")
 	content := []byte("hello world")
-	if err := os.WriteFile(testFile, content, 0644); err != nil {
+	if err := os.WriteFile(testFile, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -54,7 +54,7 @@ func TestFilesAPI_Stat(t *testing.T) {
 
 	// Test directory
 	subDir := filepath.Join(tmpDir, "subdir")
-	if err := os.Mkdir(subDir, 0755); err != nil {
+	if err := os.Mkdir(subDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -72,7 +72,7 @@ func TestFilesAPI_Lines(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "lines.txt")
 	content := "line1\nline2\nline3"
-	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -96,7 +96,7 @@ func TestFilesAPI_Lines(t *testing.T) {
 	// Test file with trailing newline
 	testFile2 := filepath.Join(tmpDir, "trailing.txt")
 	contentTrailing := "line1\nline2\n"
-	if err := os.WriteFile(testFile2, []byte(contentTrailing), 0644); err != nil {
+	if err := os.WriteFile(testFile2, []byte(contentTrailing), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,14 +118,14 @@ func TestFilesAPI_ReadDir(t *testing.T) {
 	files := []string{"file1.txt", "file2.txt", "file3.txt"}
 	for _, f := range files {
 		path := filepath.Join(tmpDir, f)
-		if err := os.WriteFile(path, []byte("content"), 0644); err != nil {
+		if err := os.WriteFile(path, []byte("content"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	// Create subdirectory
 	subDir := filepath.Join(tmpDir, "subdir")
-	if err := os.Mkdir(subDir, 0755); err != nil {
+	if err := os.Mkdir(subDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -169,7 +169,7 @@ func TestFilesAPI_GlobDetails(t *testing.T) {
 
 	for name, content := range files {
 		path := filepath.Join(tmpDir, name)
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -204,7 +204,7 @@ func TestFilesAPI_AsBase64(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "data.bin")
 	content := []byte("Hello, World!")
-	if err := os.WriteFile(testFile, content, 0644); err != nil {
+	if err := os.WriteFile(testFile, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -224,7 +224,7 @@ func TestFilesAPI_AsHex(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "data.bin")
 	content := []byte{0xDE, 0xAD, 0xBE, 0xEF}
-	if err := os.WriteFile(testFile, content, 0644); err != nil {
+	if err := os.WriteFile(testFile, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -244,7 +244,7 @@ func TestFilesAPI_AsDataURL(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.txt")
 	content := []byte("hello")
-	if err := os.WriteFile(testFile, content, 0644); err != nil {
+	if err := os.WriteFile(testFile, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -278,7 +278,7 @@ func TestFilesAPI_AsJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "data.json")
 	content := `{"name": "test", "value": 123, "active": true}`
-	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -302,7 +302,7 @@ func TestFilesAPI_AsJSON(t *testing.T) {
 
 	// Test invalid JSON
 	invalidFile := filepath.Join(tmpDir, "invalid.json")
-	if err := os.WriteFile(invalidFile, []byte("{invalid}"), 0644); err != nil {
+	if err := os.WriteFile(invalidFile, []byte("{invalid}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -320,7 +320,7 @@ value: 123
 active: true
 nested:
   key: value`
-	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -354,7 +354,7 @@ nested:
 
 	// Test invalid YAML
 	invalidFile := filepath.Join(tmpDir, "invalid.yaml")
-	if err := os.WriteFile(invalidFile, []byte(":\ninvalid"), 0644); err != nil {
+	if err := os.WriteFile(invalidFile, []byte(":\ninvalid"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -368,7 +368,7 @@ func TestFilesAPI_AsLines(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "lines.txt")
 	content := "line1\nline2\nline3"
-	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -392,7 +392,6 @@ func TestFilesAPI_AsLines(t *testing.T) {
 		}
 	}
 }
-
 
 func TestFilesAPI_ErrorHandling(t *testing.T) {
 	tmpDir := t.TempDir()

@@ -290,7 +290,7 @@ func (f FilesAPI) AsHex(path string) (string, error) {
 
 // AsDataURL reads a file and returns it as a data URL (for embedding in HTML/CSS).
 // If mimeType is empty, it will be auto-detected from the file extension.
-func (f FilesAPI) AsDataURL(path string, mimeType string) (string, error) {
+func (f FilesAPI) AsDataURL(path, mimeType string) (string, error) {
 	b, err := f.GetBytes(path)
 	if err != nil {
 		return "", err
