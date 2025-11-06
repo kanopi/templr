@@ -63,9 +63,9 @@ type OutputConfig struct {
 
 // SchemaConfig contains schema validation configuration
 type SchemaConfig struct {
-	Path     string                `yaml:"path"`     // Path to schema file (default: .templr.schema.yml)
-	Mode     string                `yaml:"mode"`     // error|warn|strict (default: warn)
-	Generate SchemaGenerateConfig  `yaml:"generate"` // Schema generation settings
+	Path     string               `yaml:"path"`     // Path to schema file (default: .templr.schema.yml)
+	Mode     string               `yaml:"mode"`     // error|warn|strict (default: warn)
+	Generate SchemaGenerateConfig `yaml:"generate"` // Schema generation settings
 }
 
 // SchemaGenerateConfig contains schema generation settings

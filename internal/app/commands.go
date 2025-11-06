@@ -57,13 +57,13 @@ type RenderOptions struct {
 
 // SchemaOptions contains options for schema commands
 type SchemaOptions struct {
-	Shared     SharedOptions
-	SchemaPath string
-	Mode       string
-	Output     string
-	Required   string
+	Shared          SharedOptions
+	SchemaPath      string
+	Mode            string
+	Output          string
+	Required        string
 	AdditionalProps bool
-	Format     string
+	Format          string
 }
 
 // buildFuncMap creates the template function map with Sprig and custom functions.
@@ -763,7 +763,7 @@ func RunSchemaGenerate(opts SchemaOptions, config *Config) error {
 
 	// Write output
 	if opts.Output != "" {
-		if err := os.WriteFile(opts.Output, schemaBytes, 0644); err != nil {
+		if err := os.WriteFile(opts.Output, schemaBytes, 0o644); err != nil {
 			return fmt.Errorf("write schema file: %w", err)
 		}
 		fmt.Printf("Generated schema -> %s\n", opts.Output)

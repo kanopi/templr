@@ -33,7 +33,7 @@ type SchemaValidationResult struct {
 }
 
 // ValidateWithSchema validates data against a YAML schema file
-func ValidateWithSchema(data map[string]interface{}, schemaPath string, mode string) (*SchemaValidationResult, error) {
+func ValidateWithSchema(data map[string]interface{}, schemaPath, mode string) (*SchemaValidationResult, error) {
 	// Read schema file
 	schemaBytes, err := os.ReadFile(schemaPath)
 	if err != nil {
@@ -131,7 +131,7 @@ func formatPathSegments(segments []string) string {
 }
 
 // buildSuggestion creates helpful suggestions based on error type
-func buildSuggestion(err *jsonschema.ValidationError, mode string) string {
+func buildSuggestion(err *jsonschema.ValidationError, _ string) string {
 	errStr := err.Error()
 
 	// Type mismatch errors
@@ -283,7 +283,7 @@ func generatePropertySchema(value interface{}, config SchemaGenerateConfig) map[
 }
 
 // shouldBeRequired determines if a field should be marked as required
-func shouldBeRequired(key string, value interface{}, mode string) bool {
+func shouldBeRequired(_ string, value interface{}, mode string) bool {
 	switch mode {
 	case "all":
 		return true

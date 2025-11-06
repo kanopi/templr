@@ -56,10 +56,10 @@ var (
 	flagLintNoUndefCheck bool
 
 	// schema command
-	flagSchemaPath          string
-	flagSchemaMode          string
-	flagSchemaOutput        string
-	flagSchemaRequired      string
+	flagSchemaPath            string
+	flagSchemaMode            string
+	flagSchemaOutput          string
+	flagSchemaRequired        string
 	flagSchemaAdditionalProps bool
 )
 
