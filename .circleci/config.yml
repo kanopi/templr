@@ -95,10 +95,11 @@ jobs:
             - v1-go-mod-{{ checksum "go.sum" }}
             - v1-go-mod-
       - run:
-          name: Install GoReleaser
+          name: Install GoReleaser / Syft
           command: |
             curl -sfL https://goreleaser.com/static/run | bash -s -- check
             curl -sL https://git.io/goreleaser | bash -s -- --version
+            curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b .bin
       - setup_remote_docker:
           version: 20.10.24
       - run:
