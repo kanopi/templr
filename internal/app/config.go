@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Files    FilesConfig    `yaml:"files"`
 	Template TemplateConfig `yaml:"template"`
+	Schema   SchemaConfig   `yaml:"schema"`
 	Lint     LintConfig     `yaml:"lint"`
 	Render   RenderConfig   `yaml:"render"`
 	Output   OutputConfig   `yaml:"output"`
@@ -60,6 +61,20 @@ type OutputConfig struct {
 	Quiet   bool   `yaml:"quiet"`
 }
 
+// SchemaConfig contains schema validation configuration
+type SchemaConfig struct {
+	Path     string               `yaml:"path"`     // Path to schema file (default: .templr.schema.yml)
+	Mode     string               `yaml:"mode"`     // error|warn|strict (default: warn)
+	Generate SchemaGenerateConfig `yaml:"generate"` // Schema generation settings
+}
+
+// SchemaGenerateConfig contains schema generation settings
+type SchemaGenerateConfig struct {
+	Required        string `yaml:"required"`         // all|none|auto (default: auto)
+	AdditionalProps bool   `yaml:"additional_props"` // Allow additionalProperties (default: true)
+	InferTypes      bool   `yaml:"infer_types"`      // Infer types from values (default: true)
+}
+
 // NewDefaultConfig returns a Config with default values
 func NewDefaultConfig() *Config {
 	return &Config{
@@ -71,6 +86,15 @@ func NewDefaultConfig() *Config {
 			LeftDelimiter:  "{{",
 			RightDelimiter: "}}",
 			DefaultMissing: "<no value>",
+		},
+		Schema: SchemaConfig{
+			Path: "",
+			Mode: "warn",
+			Generate: SchemaGenerateConfig{
+				Required:        "auto",
+				AdditionalProps: true,
+				InferTypes:      true,
+			},
 		},
 		Lint: LintConfig{
 			FailOnWarn:        false,
@@ -210,6 +234,19 @@ func mergeConfigs(dst, src *Config) {
 	if src.Template.DefaultMissing != "" {
 		dst.Template.DefaultMissing = src.Template.DefaultMissing
 	}
+
+	// Merge Schema config
+	if src.Schema.Path != "" {
+		dst.Schema.Path = src.Schema.Path
+	}
+	if src.Schema.Mode != "" {
+		dst.Schema.Mode = src.Schema.Mode
+	}
+	if src.Schema.Generate.Required != "" {
+		dst.Schema.Generate.Required = src.Schema.Generate.Required
+	}
+	dst.Schema.Generate.AdditionalProps = src.Schema.Generate.AdditionalProps
+	dst.Schema.Generate.InferTypes = src.Schema.Generate.InferTypes
 
 	// Merge Lint config
 	// For booleans, we need to check if they were explicitly set in YAML

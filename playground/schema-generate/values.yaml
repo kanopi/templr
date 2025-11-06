@@ -1,0 +1,20 @@
+# Sample values for schema generation
+app:
+  name: templr-demo
+  version: "1.0.0"
+  enabled: true
+
+servers:
+  - hostname: web-01
+    port: 8080
+    ssl: true
+  - hostname: web-02
+    port: 8080
+    ssl: true
+
+config:
+  timeout: 30
+  retries: 3
+  endpoints:
+    api: https://api.example.com
+    metrics: https://metrics.example.com

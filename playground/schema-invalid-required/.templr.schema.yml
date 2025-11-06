@@ -1,0 +1,59 @@
+$schema: http://json-schema.org/draft-07/schema#
+type: object
+required:
+  - service
+  - environment
+  - database
+
+properties:
+  service:
+    type: object
+    required:
+      - name
+      - replicas
+    properties:
+      name:
+        type: string
+        description: Service name
+      replicas:
+        type: number
+        minimum: 1
+        maximum: 10
+        description: Number of replicas
+      port:
+        type: number
+        minimum: 1
+        maximum: 65535
+        description: Service port
+  
+  environment:
+    type: string
+    enum:
+      - development
+      - staging
+      - production
+    description: Deployment environment
+  
+  database:
+    type: object
+    required:
+      - host
+      - credentials
+    properties:
+      host:
+        type: string
+        description: Database hostname
+      port:
+        type: number
+        default: 5432
+        description: Database port
+      credentials:
+        type: object
+        required:
+          - username
+          - password
+        properties:
+          username:
+            type: string
+          password:
+            type: string

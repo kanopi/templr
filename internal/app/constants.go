@@ -10,6 +10,7 @@ const (
 	ExitGuardSkipped  = 5
 	ExitLintWarn      = 6 // lint found warnings (with --fail-on-warn)
 	ExitLintError     = 7 // lint found errors
+	ExitSchemaError   = 8 // schema validation failed
 )
 
 // Version is set at build time via -ldflags
