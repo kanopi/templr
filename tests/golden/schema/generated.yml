@@ -1,0 +1,64 @@
+$schema: http://json-schema.org/draft-07/schema#
+properties:
+    app:
+        properties:
+            enabled:
+                type: boolean
+            name:
+                description: 'String value (example: templr-demo)'
+                type: string
+            version:
+                description: 'String value (example: 1.0.0)'
+                type: string
+        required:
+            - enabled
+            - name
+            - version
+        type: object
+    config:
+        properties:
+            endpoints:
+                properties:
+                    api:
+                        description: 'String value (example: https://api.example.com)'
+                        type: string
+                    metrics:
+                        description: 'String value (example: https://metrics.example.com)'
+                        type: string
+                required:
+                    - api
+                    - metrics
+                type: object
+            retries:
+                description: 'Numeric value (example: 3)'
+                type: number
+            timeout:
+                description: 'Numeric value (example: 30)'
+                type: number
+        required:
+            - endpoints
+            - retries
+            - timeout
+        type: object
+    servers:
+        items:
+            properties:
+                hostname:
+                    description: 'String value (example: web-01)'
+                    type: string
+                port:
+                    description: 'Numeric value (example: 8080)'
+                    type: number
+                ssl:
+                    type: boolean
+            required:
+                - hostname
+                - port
+                - ssl
+            type: object
+        type: array
+required:
+    - app
+    - config
+    - servers
+type: object

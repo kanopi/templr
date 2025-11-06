@@ -205,4 +205,29 @@ run_and_diff "ext_walk/info" cat "$OUT_DIR/ext_walk/out/info"
 # EXTENSIONS: dir mode parse .md; render to .md
 run_and_diff "ext_dir/readme.md"   "$BIN_DIR/templr" -dir "$EXAMPLES_DIR/ext_dir" -in "$EXAMPLES_DIR/ext_dir/README.md" -out "$OUT_DIR/ext_dir/readme.md" -ext md
 
+# SCHEMA: validation passes
+mkdir -p "$OUT_DIR/schema"
+"$BIN_DIR/templr" schema validate --data "$EXAMPLES_DIR/schema-valid/values.yaml" --schema "$EXAMPLES_DIR/schema-valid/.templr.schema.yml" > "$OUT_DIR/schema/valid-out.txt" 2>&1
+if ! grep -q "Validation passed" "$OUT_DIR/schema/valid-out.txt"; then
+  fail "schema validation should pass for valid values"
+fi
+pass "schema validation: valid values pass"
+
+# SCHEMA: validation fails on type mismatch (warn mode)
+"$BIN_DIR/templr" schema validate --data "$EXAMPLES_DIR/schema-invalid-type/values.yaml" --schema "$EXAMPLES_DIR/schema-invalid-type/.templr.schema.yml" > "$OUT_DIR/schema/invalid-type-out.txt" 2>&1
+if ! grep -q "want number" "$OUT_DIR/schema/invalid-type-out.txt"; then
+  fail "schema validation should detect type mismatch"
+fi
+pass "schema validation: type mismatch detected"
+
+# SCHEMA: validation fails on missing required (warn mode)
+"$BIN_DIR/templr" schema validate --data "$EXAMPLES_DIR/schema-invalid-required/values.yaml" --schema "$EXAMPLES_DIR/schema-invalid-required/.templr.schema.yml" > "$OUT_DIR/schema/invalid-req-out.txt" 2>&1
+if ! grep -q "missing property" "$OUT_DIR/schema/invalid-req-out.txt"; then
+  fail "schema validation should detect missing required fields"
+fi
+pass "schema validation: missing required detected"
+
+# SCHEMA: generation creates schema
+run_and_diff "schema/generated.yml"   "$BIN_DIR/templr" schema generate --data "$EXAMPLES_DIR/schema-generate/values.yaml"
+
 pass "ALL TESTS PASSED"
