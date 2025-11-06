@@ -2,6 +2,8 @@ package app
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -196,6 +198,184 @@ func (f FilesAPI) Glob(pat string) ([]string, error) {
 		}
 	}
 	return rel, nil
+}
+
+// Exists checks if a file or directory exists at the given path.
+func (f FilesAPI) Exists(path string) bool {
+	_, err := os.Stat(filepath.Join(f.Root, path))
+	return err == nil
+}
+
+// FileInfo contains metadata about a file.
+type FileInfo struct {
+	Name    string
+	Size    int64
+	Mode    string
+	ModTime string
+	IsDir   bool
+}
+
+// Stat returns metadata about a file.
+func (f FilesAPI) Stat(path string) (FileInfo, error) {
+	fi, err := os.Stat(filepath.Join(f.Root, path))
+	if err != nil {
+		return FileInfo{}, err
+	}
+
+	return FileInfo{
+		Name:    fi.Name(),
+		Size:    fi.Size(),
+		Mode:    fi.Mode().String(),
+		ModTime: fi.ModTime().Format("2006-01-02T15:04:05Z07:00"),
+		IsDir:   fi.IsDir(),
+	}, nil
+}
+
+// Lines reads a file and returns its lines as a slice of strings.
+func (f FilesAPI) Lines(path string) ([]string, error) {
+	content, err := f.Get(path)
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(strings.TrimSuffix(content, "\n"), "\n"), nil
+}
+
+// ReadDir returns a list of file and directory names in the given directory.
+func (f FilesAPI) ReadDir(path string) ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(f.Root, path))
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names, nil
+}
+
+// GlobDetails returns file metadata for all files matching the given pattern.
+func (f FilesAPI) GlobDetails(pat string) ([]FileInfo, error) {
+	paths, err := f.Glob(pat)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := make([]FileInfo, 0, len(paths))
+	for _, p := range paths {
+		if info, err := f.Stat(p); err == nil {
+			infos = append(infos, info)
+		}
+	}
+	return infos, nil
+}
+
+// AsBase64 reads a file and returns its contents as a base64-encoded string.
+func (f FilesAPI) AsBase64(path string) (string, error) {
+	b, err := f.GetBytes(path)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
+}
+
+// AsHex reads a file and returns its contents as a hexadecimal string.
+func (f FilesAPI) AsHex(path string) (string, error) {
+	b, err := f.GetBytes(path)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// AsDataURL reads a file and returns it as a data URL (for embedding in HTML/CSS).
+// If mimeType is empty, it will be auto-detected from the file extension.
+func (f FilesAPI) AsDataURL(path string, mimeType string) (string, error) {
+	b, err := f.GetBytes(path)
+	if err != nil {
+		return "", err
+	}
+
+	if mimeType == "" {
+		mimeType = detectMimeType(path)
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(b)
+	return fmt.Sprintf("data:%s;base64,%s", mimeType, encoded), nil
+}
+
+// AsLines reads a file and returns its lines as a slice (alias for Lines).
+func (f FilesAPI) AsLines(path string) ([]string, error) {
+	return f.Lines(path)
+}
+
+// AsJSON reads a JSON file and returns it as a map.
+func (f FilesAPI) AsJSON(path string) (map[string]any, error) {
+	b, err := f.GetBytes(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(b, &result); err != nil {
+		return nil, fmt.Errorf("parse JSON from %s: %w", path, err)
+	}
+	return result, nil
+}
+
+// AsYAML reads a YAML file and returns it as a map.
+func (f FilesAPI) AsYAML(path string) (map[string]any, error) {
+	b, err := f.GetBytes(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]any
+	if err := yaml.Unmarshal(b, &result); err != nil {
+		return nil, fmt.Errorf("parse YAML from %s: %w", path, err)
+	}
+	return result, nil
+}
+
+// detectMimeType returns the MIME type based on file extension.
+func detectMimeType(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".svg":
+		return "image/svg+xml"
+	case ".webp":
+		return "image/webp"
+	case ".ico":
+		return "image/x-icon"
+	case ".css":
+		return "text/css"
+	case ".js":
+		return "application/javascript"
+	case ".json":
+		return "application/json"
+	case ".xml":
+		return "application/xml"
+	case ".html", ".htm":
+		return "text/html"
+	case ".pdf":
+		return "application/pdf"
+	case ".woff":
+		return "font/woff"
+	case ".woff2":
+		return "font/woff2"
+	case ".ttf":
+		return "font/ttf"
+	case ".eot":
+		return "application/vnd.ms-fontobject"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 func loadData(path string) (map[string]any, error) {
