@@ -128,23 +128,101 @@ Inside a `range`, `.` is the current item.
 
 Templr provides access to files in the input directory via the `.Files` object.
 
-- `.Files.Glob("pattern")` returns a list of files matching the glob pattern.
-- `.Files.Get("filename")` returns the content of a specific file.
+### Basic File Operations
 
-Example:
+**Read Files:**
+- `.Files.Get("filename")` - Returns file content as a string
+- `.Files.GetBytes("filename")` - Returns file content as bytes
+
+**File Discovery:**
+- `.Files.Glob("pattern")` - Returns list of files matching glob pattern
+- `.Files.Exists("path")` - Returns true if file or directory exists
+- `.Files.ReadDir("path")` - Returns list of files/directories in a directory
+
+**File Metadata:**
+- `.Files.Stat("path")` - Returns file metadata (Name, Size, Mode, ModTime, IsDir)
+- `.Files.GlobDetails("pattern")` - Returns file metadata for all matching files
+
+### Reading Files Line-by-Line
+
+- `.Files.Lines("filename")` - Returns file content as array of lines
+- `.Files.AsLines("filename")` - Alias for Lines()
+
+**Example:**
 
 ```gotmpl
-{{ range .Files.Glob("*.txt") }}
-- File: {{ .Name }}
-{{ end }}
+{{- range $idx, $line := .Files.Lines "servers.txt" }}
+server{{ $idx }}: {{ $line }}
+{{- end }}
 ```
 
-You can also access file content:
+### Encoding Helpers
 
+**Base64 Encoding:**
 ```gotmpl
-{{ $content := .Files.Get "README.md" }}
-Content of README:
-{{ $content }}
+# Perfect for Kubernetes Secrets
+apiVersion: v1
+kind: Secret
+data:
+  tls.crt: {{ .Files.AsBase64 "certs/tls.crt" }}
+  tls.key: {{ .Files.AsBase64 "certs/tls.key" }}
+```
+
+**Other Encodings:**
+- `.Files.AsHex("file")` - Returns file content as hexadecimal string
+- `.Files.AsDataURL("file", "mime/type")` - Returns data URL for embedding in HTML/CSS
+
+**Data URL Example:**
+```gotmpl
+<!-- Embed image directly in HTML -->
+<img src="{{ .Files.AsDataURL "logo.png" "" }}" alt="Logo">
+```
+
+### Parsing Structured Files
+
+**JSON:**
+```gotmpl
+{{- $config := .Files.AsJSON "config.json" }}
+App: {{ $config.app.name }}
+Version: {{ $config.app.version }}
+```
+
+**YAML:**
+```gotmpl
+{{- $values := .Files.AsYAML "values.yaml" }}
+Database: {{ $values.database.host }}:{{ $values.database.port }}
+```
+
+### Advanced Examples
+
+**Conditional File Loading:**
+```gotmpl
+{{- if .Files.Exists "config/prod.yaml" }}
+{{- $prodConfig := .Files.AsYAML "config/prod.yaml" }}
+# Production configuration loaded
+{{- end }}
+```
+
+**Directory Listing:**
+```gotmpl
+Files in configs/:
+{{- range .Files.ReadDir "configs" }}
+  - {{ . }}
+{{- end }}
+```
+
+**File Metadata:**
+```gotmpl
+{{- range .Files.GlobDetails "*.yaml" }}
+- {{ .Name }} ({{ .Size }} bytes, modified {{ .ModTime }})
+{{- end }}
+```
+
+**Glob Pattern Matching:**
+```gotmpl
+{{ range .Files.Glob("*.txt") }}
+- File: {{ . }}
+{{ end }}
 ```
 
 ---
