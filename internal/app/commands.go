@@ -6,13 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/mail"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/dustin/go-humanize"
 	"github.com/kanopi/templr/pkg/templr"
+	toml "github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -68,6 +75,8 @@ type SchemaOptions struct {
 
 // buildFuncMap creates the template function map with Sprig and custom functions.
 // The returned function map includes a closure reference to tpl for the include function.
+//
+//nolint:gocyclo // Function map builders naturally have high complexity
 func buildFuncMap(tpl **template.Template) template.FuncMap {
 	funcs := sprig.TxtFuncMap()
 
@@ -179,6 +188,131 @@ func buildFuncMap(tpl **template.Template) template.FuncMap {
 		default:
 			return fmt.Sprint(v)
 		}
+	}
+
+	// Humanize functions
+	funcs["humanizeBytes"] = func(size any) string {
+		var bytes uint64
+		switch v := size.(type) {
+		case int:
+			bytes = uint64(v)
+		case int64:
+			bytes = uint64(v)
+		case uint64:
+			bytes = v
+		case float64:
+			bytes = uint64(v)
+		default:
+			return fmt.Sprint(size)
+		}
+		return humanize.Bytes(bytes)
+	}
+
+	funcs["humanizeTime"] = func(t any) string {
+		var timeVal time.Time
+		switch v := t.(type) {
+		case time.Time:
+			timeVal = v
+		case string:
+			parsed, err := time.Parse(time.RFC3339, v)
+			if err != nil {
+				return v
+			}
+			timeVal = parsed
+		default:
+			return fmt.Sprint(t)
+		}
+		return humanize.Time(timeVal)
+	}
+
+	funcs["humanizeNumber"] = func(num any) string {
+		switch v := num.(type) {
+		case int:
+			return humanize.Comma(int64(v))
+		case int64:
+			return humanize.Comma(v)
+		case float64:
+			return humanize.Commaf(v)
+		default:
+			return fmt.Sprint(num)
+		}
+	}
+
+	funcs["ordinal"] = func(num any) string {
+		var n int
+		switch v := num.(type) {
+		case int:
+			n = v
+		case int64:
+			n = int(v)
+		case float64:
+			n = int(v)
+		default:
+			return fmt.Sprint(num)
+		}
+		return humanize.Ordinal(n)
+	}
+
+	// TOML functions
+	funcs["toToml"] = func(v any) (string, error) {
+		b, err := toml.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
+	}
+
+	funcs["fromToml"] = func(s string) (map[string]any, error) {
+		var m map[string]any
+		if err := toml.Unmarshal([]byte(s), &m); err != nil {
+			return nil, err
+		}
+		return m, nil
+	}
+
+	// Path functions
+	funcs["pathExt"] = func(path string) string {
+		return filepath.Ext(path)
+	}
+
+	funcs["pathStem"] = func(path string) string {
+		base := filepath.Base(path)
+		ext := filepath.Ext(base)
+		return strings.TrimSuffix(base, ext)
+	}
+
+	funcs["pathNormalize"] = func(path string) string {
+		return filepath.Clean(path)
+	}
+
+	funcs["mimeType"] = func(path string) string {
+		return detectMimeType(path)
+	}
+
+	// Validation functions
+	funcs["isEmail"] = func(email string) bool {
+		_, err := mail.ParseAddress(email)
+		return err == nil
+	}
+
+	funcs["isURL"] = func(rawURL string) bool {
+		u, err := url.Parse(rawURL)
+		return err == nil && u.Scheme != "" && u.Host != ""
+	}
+
+	funcs["isIPv4"] = func(ip string) bool {
+		parsed := net.ParseIP(ip)
+		return parsed != nil && parsed.To4() != nil
+	}
+
+	funcs["isIPv6"] = func(ip string) bool {
+		parsed := net.ParseIP(ip)
+		return parsed != nil && parsed.To4() == nil
+	}
+
+	funcs["isUUID"] = func(uuid string) bool {
+		uuidRegex := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+		return uuidRegex.MatchString(uuid)
 	}
 
 	return funcs

@@ -11,12 +11,17 @@
 5. [Data Precedence and Scoping](#5-data-precedence-and-scoping)
    - [Default values.yaml and values.yml Lookup](#default-valuesyaml-and-valuesyml-lookup)
 6. [Advanced Capabilities and Sprig Functions](#6-advanced-capabilities-and-sprig-functions)
-7. [Helper Templates and Pre-Render Variables](#7-helper-templates-and-pre-render-variables)
-8. [Guards and Safe Access](#8-guards-and-safe-access)
-9. [Comments](#9-comments)
-10. [Putting It All Together](#10-putting-it-all-together)
-11. [Configuration Files and Project Setup](#11-configuration-files-and-project-setup)
-12. [Summary](#summary)
+7. [Additional Template Functions](#7-additional-template-functions)
+   - [Humanization Functions](#humanization-functions)
+   - [TOML Support](#toml-support)
+   - [Path Functions](#path-functions)
+   - [Validation Functions](#validation-functions)
+8. [Helper Templates and Pre-Render Variables](#8-helper-templates-and-pre-render-variables)
+9. [Guards and Safe Access](#9-guards-and-safe-access)
+10. [Comments](#10-comments)
+11. [Putting It All Together](#11-putting-it-all-together)
+12. [Configuration Files and Project Setup](#12-configuration-files-and-project-setup)
+13. [Summary](#summary)
 
 ---
 
@@ -333,7 +338,160 @@ Sprig functions like `or`, `and`, `not`, `hasKey`, and `get` allow for expressiv
 
 These capabilities make it easy to build robust, dynamic templates for complex configuration scenarios.
 
-## 7. Helper Templates and Pre-Render Variables
+## 7. Additional Template Functions
+
+Templr extends the Sprig function library with additional specialized functions for common use cases.
+
+### Humanization Functions
+
+Format numbers, bytes, and dates in human-readable formats:
+
+```gotmpl
+# File sizes
+Disk usage: {{ 1234567890 | humanizeBytes }}
+# Output: Disk usage: 1.1 GB
+
+# Numbers with commas
+Downloads: {{ 1234567 | humanizeNumber }}
+# Output: Downloads: 1,234,567
+
+# Ordinal numbers
+You finished {{ 1 | ordinal }} place!
+# Output: You finished 1st place!
+
+# Relative time (requires RFC3339 timestamp)
+Last updated: {{ "2024-01-01T00:00:00Z" | humanizeTime }}
+# Output: Last updated: 10 months ago
+```
+
+### TOML Support
+
+Parse and generate TOML configuration files:
+
+```gotmpl
+# Parse TOML from string or file
+{{- $toml := `
+name = "myapp"
+version = "1.0.0"
+
+[database]
+host = "localhost"
+port = 5432
+` }}
+{{- $config := fromToml $toml }}
+App: {{ $config.name }} v{{ $config.version }}
+DB: {{ $config.database.host }}:{{ $config.database.port }}
+
+# Generate TOML
+{{- $data := dict "name" "myapp" "port" 8080 }}
+{{ $data | toToml }}
+# Output:
+# name = 'myapp'
+# port = 8080
+```
+
+### Path Functions
+
+Work with file paths and extensions:
+
+```gotmpl
+# Extract file extension
+{{ pathExt "document.pdf" }}
+# Output: .pdf
+
+# Get filename without extension
+{{ pathStem "archive.tar.gz" }}
+# Output: archive.tar
+
+# Normalize paths
+{{ pathNormalize "foo/./bar/../baz" }}
+# Output: foo/baz
+
+# Detect MIME type from extension
+{{ mimeType "image.png" }}
+# Output: image/png
+```
+
+### Validation Functions
+
+Validate common data formats:
+
+```gotmpl
+{{- if not (isEmail .contactEmail) }}
+ERROR: Invalid email address
+{{- end }}
+
+{{- if not (isURL .website) }}
+ERROR: Invalid URL
+{{- end }}
+
+{{- if isIPv4 .serverIP }}
+Server is IPv4: {{ .serverIP }}
+{{- else if isIPv6 .serverIP }}
+Server is IPv6: {{ .serverIP }}
+{{- end }}
+
+{{- if not (isUUID .requestId) }}
+ERROR: Invalid request ID format
+{{- end }}
+```
+
+#### Real-World Example
+
+```yaml
+# values.yaml
+contactEmail: admin@example.com
+website: https://example.com
+serverIP: 10.0.0.1
+requestId: 550e8400-e29b-41d4-a716-446655440000
+```
+
+```gotmpl
+# template.tpl
+# Validation check
+{{- if not (isEmail .contactEmail) }}
+  {{- fail "Invalid contact email" }}
+{{- end }}
+{{- if not (isURL .website) }}
+  {{- fail "Invalid website URL" }}
+{{- end }}
+{{- if not (isIPv4 .serverIP) }}
+  {{- fail "Server IP must be IPv4" }}
+{{- end }}
+{{- if not (isUUID .requestId) }}
+  {{- fail "Request ID must be valid UUID" }}
+{{- end }}
+
+# Configuration validated successfully
+contact_email: {{ .contactEmail }}
+website: {{ .website }}
+server_ip: {{ .serverIP }}
+request_id: {{ .requestID }}
+```
+
+### Complete Function Reference
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `humanizeBytes` | Format bytes as human-readable size | `{{ 1048576 \| humanizeBytes }}` → "1.0 MB" |
+| `humanizeNumber` | Add thousand separators | `{{ 1234567 \| humanizeNumber }}` → "1,234,567" |
+| `humanizeTime` | Relative time format | `{{ "2024-01-01T00:00:00Z" \| humanizeTime }}` → "10 months ago" |
+| `ordinal` | Convert number to ordinal | `{{ 21 \| ordinal }}` → "21st" |
+| `toToml` | Serialize to TOML | `{{ $data \| toToml }}` |
+| `fromToml` | Parse TOML string | `{{ $tomlStr \| fromToml }}` |
+| `pathExt` | Get file extension | `{{ pathExt "file.txt" }}` → ".txt" |
+| `pathStem` | Get filename without extension | `{{ pathStem "doc.pdf" }}` → "doc" |
+| `pathNormalize` | Normalize path separators | `{{ pathNormalize "a/b/../c" }}` → "a/c" |
+| `mimeType` | Detect MIME type from extension | `{{ mimeType "data.json" }}` → "application/json" |
+| `isEmail` | Validate email address | `{{ isEmail "user@example.com" }}` → true |
+| `isURL` | Validate URL | `{{ isURL "https://example.com" }}` → true |
+| `isIPv4` | Check if valid IPv4 | `{{ isIPv4 "192.168.1.1" }}` → true |
+| `isIPv6` | Check if valid IPv6 | `{{ isIPv6 "2001:db8::1" }}` → true |
+| `isUUID` | Check if valid UUID | `{{ isUUID "550e8400-e29b-41d4-a716-446655440000" }}` → true |
+
+---
+
+## 8. Helper Templates and Pre-Render Variables
 
 Templr supports the use of helper templates, typically loaded from a file named `_helpers.tpl` or from files specified with the `--helpers` flag. These helper templates can define a special template named `templr.vars` that is executed before rendering the main templates. The output of `templr.vars` should be valid YAML or JSON and is deep-merged into the root values, allowing you to transform or inject variables dynamically.
 
@@ -363,7 +521,7 @@ In this example, the `templr.vars` template combines environment variables from 
 
 ---
 
-## 8. Guards and Safe Access
+## 9. Guards and Safe Access
 
 To avoid runtime errors when accessing potentially missing data, use guards:
 
@@ -383,7 +541,7 @@ Email: {{ default .User.Email "no-email@example.com" }}
 
 ---
 
-## 9. Comments
+## 10. Comments
 
 Add comments in your template that will not appear in the output:
 
@@ -393,7 +551,7 @@ Add comments in your template that will not appear in the output:
 
 ---
 
-## 10. Putting It All Together
+## 11. Putting It All Together
 
 Example template:
 
@@ -412,7 +570,7 @@ No markdown files found.
 
 ---
 
-## 11. Configuration Files and Project Setup
+## 12. Configuration Files and Project Setup
 
 ### Overview
 
@@ -718,7 +876,7 @@ templr walk --src templates --dst output
 
 ---
 
-## Summary
+## 13. Summary
 
 - Use `{{ .Variable }}` to access data.
 - Control flow with `if`, `else`, and `range`.
