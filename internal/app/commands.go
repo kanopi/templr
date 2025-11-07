@@ -45,6 +45,7 @@ type SharedOptions struct {
 	InjectGuard    bool
 	DefaultMissing string
 	NoColor        bool
+	Debug          bool
 	Ldelim         string
 	Rdelim         string
 	ExtraExts      []string
@@ -945,34 +946,63 @@ func parseXMLElement(elem *etree.Element) any {
 
 // buildValues constructs the values map from defaults, data files, and --set overrides
 func buildValues(baseDir string, shared SharedOptions) (map[string]any, error) {
+	debugSection(shared.Debug, "Value Loading Sequence")
 	values := map[string]any{}
 
 	// Load default values.yaml from baseDir if it exists
+	debugf(shared.Debug, "Loading default values from %s", baseDir)
 	def, err := loadDefaultValues(baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("load default values: %w", err)
+	}
+	if len(def) > 0 {
+		debugf(shared.Debug, "  → Loaded %d key(s) from default values.yaml", len(def))
+		if shared.Debug {
+			for k := range def {
+				debugf(shared.Debug, "     - %s", k)
+			}
+		}
+	} else {
+		debugf(shared.Debug, "  → No default values.yaml found")
 	}
 	values = deepMerge(values, def)
 
 	// Load --data file if specified
 	if shared.Data != "" {
+		debugf(shared.Debug, "Loading data from --data=%s", shared.Data)
 		add, err := loadData(shared.Data)
 		if err != nil {
 			return nil, fmt.Errorf("load data: %w", err)
+		}
+		debugf(shared.Debug, "  → Loaded %d key(s)", len(add))
+		if shared.Debug {
+			for k := range add {
+				debugf(shared.Debug, "     - %s", k)
+			}
 		}
 		values = deepMerge(values, add)
 	}
 
 	// Load -f files
 	for _, f := range shared.Files {
+		debugf(shared.Debug, "Loading data from -f %s", f)
 		add, err := loadData(f)
 		if err != nil {
 			return nil, fmt.Errorf("load -f %s: %w", f, err)
+		}
+		debugf(shared.Debug, "  → Loaded %d key(s)", len(add))
+		if shared.Debug {
+			for k := range add {
+				debugf(shared.Debug, "     - %s", k)
+			}
 		}
 		values = deepMerge(values, add)
 	}
 
 	// Apply --set overrides
+	if len(shared.Sets) > 0 {
+		debugf(shared.Debug, "Applying %d --set override(s)", len(shared.Sets))
+	}
 	for _, kv := range shared.Sets {
 		idx := strings.Index(kv, "=")
 		if idx <= 0 {
@@ -980,8 +1010,11 @@ func buildValues(baseDir string, shared SharedOptions) (map[string]any, error) {
 		}
 		key := kv[:idx]
 		val := parseScalar(kv[idx+1:])
+		debugf(shared.Debug, "  → Setting %s = %v", key, val)
 		setByDottedKey(values, key, val)
 	}
+
+	debugValues(shared.Debug, values, "Final Merged Values")
 
 	return values, nil
 }
@@ -1266,6 +1299,8 @@ func RunDirMode(opts DirOptions) error {
 //
 //nolint:gocyclo,cyclop // orchestration function with inherent complexity
 func RunRenderMode(opts RenderOptions) error {
+	debugSection(opts.Shared.Debug, "Template Rendering Flow")
+
 	// Determine Files.Root (dir of -in if present)
 	filesRoot := "."
 	if opts.In != "" {
@@ -1275,6 +1310,7 @@ func RunRenderMode(opts RenderOptions) error {
 			}
 		}
 	}
+	debugf(opts.Shared.Debug, "Files.Root directory: %s", filesRoot)
 
 	// Build values
 	values, err := buildValues(filesRoot, opts.Shared)
@@ -1284,8 +1320,13 @@ func RunRenderMode(opts RenderOptions) error {
 
 	// Add .Files API
 	values["Files"] = FilesAPI{Root: filesRoot}
+	debugf(opts.Shared.Debug, "Added .Files API with root: %s", filesRoot)
 
 	// Create template with functions
+	debugf(opts.Shared.Debug, "Creating template with delimiters: %s ... %s", opts.Shared.Ldelim, opts.Shared.Rdelim)
+	if opts.Shared.Strict {
+		debugf(opts.Shared.Debug, "Strict mode enabled (missingkey=error)")
+	}
 	var tpl *template.Template
 	funcs := buildFuncMap(&tpl)
 	tpl = template.New("root").Funcs(funcs).Option("missingkey=default")
@@ -1299,47 +1340,66 @@ func RunRenderMode(opts RenderOptions) error {
 	sources := make(map[string][]byte)
 	tplName := "stdin"
 	if opts.In == "" {
+		debugf(opts.Shared.Debug, "Reading template from stdin")
 		srcBytes, err = io.ReadAll(os.Stdin)
 		if err != nil {
 			return fmt.Errorf("read stdin: %w", err)
 		}
 	} else {
+		debugf(opts.Shared.Debug, "Reading template from file: %s", opts.In)
 		srcBytes, err = os.ReadFile(opts.In)
 		if err != nil {
 			return fmt.Errorf("read template: %w", err)
 		}
 		tplName = filepath.Base(opts.In)
 	}
+	debugf(opts.Shared.Debug, "Main template: %s (%d bytes)", tplName, len(srcBytes))
 	sources[tplName] = srcBytes
 	sources["root"] = srcBytes // Also map to "root" since that's what template.Parse uses
 
 	// Load sidecar helpers in the same directory based on -helpers glob (default: _helpers.tpl)
 	if filesRoot != "" && filesRoot != "." && opts.Helpers != "" {
 		pattern := filepath.Join(filesRoot, opts.Helpers)
+		debugf(opts.Shared.Debug, "Looking for helper templates: %s", pattern)
 		if matches, _ := filepath.Glob(pattern); len(matches) > 0 {
+			debugf(opts.Shared.Debug, "Found %d helper template(s)", len(matches))
 			for _, hp := range matches {
 				if b, e := os.ReadFile(hp); e == nil {
 					helperName := filepath.ToSlash(filepath.Base(hp))
+					debugf(opts.Shared.Debug, "  → Loading helper: %s (%d bytes)", helperName, len(b))
 					sources[helperName] = b
 					if _, e2 := tpl.New(helperName).Parse(string(b)); e2 != nil {
 						return fmt.Errorf("parse helper %s: %w", hp, e2)
 					}
 				}
 			}
+		} else {
+			debugf(opts.Shared.Debug, "  → No helper templates found")
 		}
 	}
 
+	debugf(opts.Shared.Debug, "Parsing main template")
 	tpl, err = tpl.Parse(string(srcBytes))
 	if err != nil {
 		return fmt.Errorf("parse: %w", err)
 	}
 
 	// Compute helper-driven variables (templr.vars)
+	debugf(opts.Shared.Debug, "Checking for templr.vars template")
 	if err := computeHelperVars(tpl, values); err != nil {
 		return fmt.Errorf("helpers: %w", err)
 	}
+	if tpl.Lookup("templr.vars") != nil {
+		debugf(opts.Shared.Debug, "  → templr.vars executed, values updated")
+		if opts.Shared.Debug {
+			debugValues(opts.Shared.Debug, values, "Values After templr.vars")
+		}
+	} else {
+		debugf(opts.Shared.Debug, "  → No templr.vars template found")
+	}
 
 	// render to buffer
+	debugf(opts.Shared.Debug, "Rendering template")
 	outBytes, rerr := renderToBuffer(tpl, "", values)
 	if rerr != nil {
 		if opts.Shared.Strict {
@@ -1347,6 +1407,8 @@ func RunRenderMode(opts RenderOptions) error {
 		}
 		return rerr
 	}
+	debugf(opts.Shared.Debug, "Render complete (%d bytes)", len(outBytes))
+
 	// apply global default-missing replacement
 	outBytes = applyDefaultMissing(outBytes, opts.Shared.DefaultMissing)
 
@@ -1540,4 +1602,36 @@ func pluralize(count int) string {
 		return ""
 	}
 	return "s"
+}
+
+// Debug logging helpers
+func debugf(debug bool, format string, args ...any) {
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] "+format+"\n", args...)
+	}
+}
+
+func debugSection(debug bool, title string) {
+	if debug {
+		fmt.Fprintf(os.Stderr, "\n"+strings.Repeat("=", 60)+"\n")
+		fmt.Fprintf(os.Stderr, "[DEBUG] %s\n", title)
+		fmt.Fprintf(os.Stderr, strings.Repeat("=", 60)+"\n")
+	}
+}
+
+func debugValues(debug bool, values map[string]any, title string) {
+	if !debug {
+		return
+	}
+
+	debugSection(debug, title)
+
+	// Convert to YAML for pretty printing
+	yamlBytes, err := yaml.Marshal(values)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[DEBUG] Error marshaling values: %v\n", err)
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "%s\n", string(yamlBytes))
 }

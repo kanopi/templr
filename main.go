@@ -26,6 +26,7 @@ var (
 	flagInjectGuard    bool
 	flagDefaultMissing string
 	flagNoColor        bool
+	flagDebug          bool
 	flagLdelim         string
 	flagRdelim         string
 	flagExtraExts      []string
@@ -128,6 +129,7 @@ Examples:
 				InjectGuard:    flagInjectGuard,
 				DefaultMissing: flagDefaultMissing,
 				NoColor:        flagNoColor,
+				Debug:          flagDebug,
 				Ldelim:         flagLdelim,
 				Rdelim:         flagRdelim,
 				ExtraExts:      flagExtraExts,
@@ -165,6 +167,7 @@ Examples:
 				InjectGuard:    flagInjectGuard,
 				DefaultMissing: flagDefaultMissing,
 				NoColor:        flagNoColor,
+				Debug:          flagDebug,
 				Ldelim:         flagLdelim,
 				Rdelim:         flagRdelim,
 				ExtraExts:      flagExtraExts,
@@ -207,6 +210,7 @@ Examples:
 				InjectGuard:    flagInjectGuard,
 				DefaultMissing: flagDefaultMissing,
 				NoColor:        flagNoColor,
+				Debug:          flagDebug,
 				Ldelim:         flagLdelim,
 				Rdelim:         flagRdelim,
 				ExtraExts:      flagExtraExts,
@@ -261,6 +265,7 @@ Examples:
 				InjectGuard:    flagInjectGuard,
 				DefaultMissing: flagDefaultMissing,
 				NoColor:        flagNoColor,
+				Debug:          flagDebug,
 				Ldelim:         flagLdelim,
 				Rdelim:         flagRdelim,
 				ExtraExts:      flagExtraExts,
@@ -331,6 +336,7 @@ Examples:
 				InjectGuard:    flagInjectGuard,
 				DefaultMissing: flagDefaultMissing,
 				NoColor:        flagNoColor,
+				Debug:          flagDebug,
 				Ldelim:         flagLdelim,
 				Rdelim:         flagRdelim,
 				ExtraExts:      flagExtraExts,
@@ -385,6 +391,7 @@ Examples:
 				InjectGuard:    flagInjectGuard,
 				DefaultMissing: flagDefaultMissing,
 				NoColor:        flagNoColor,
+				Debug:          flagDebug,
 				Ldelim:         flagLdelim,
 				Rdelim:         flagRdelim,
 				ExtraExts:      flagExtraExts,
@@ -422,6 +429,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&flagInjectGuard, "inject-guard", true, "Automatically insert the guard as a comment into written files")
 	rootCmd.PersistentFlags().StringVar(&flagDefaultMissing, "default-missing", "<no value>", "String to render when a variable/key is missing")
 	rootCmd.PersistentFlags().BoolVar(&flagNoColor, "no-color", false, "Disable colored output (useful for CI/non-ANSI terminals)")
+	rootCmd.PersistentFlags().BoolVar(&flagDebug, "debug", false, "Enable debug output (shows variable context and render evaluation flow)")
 	rootCmd.PersistentFlags().StringVar(&flagLdelim, "ldelim", "{{", "Left delimiter")
 	rootCmd.PersistentFlags().StringVar(&flagRdelim, "rdelim", "}}", "Right delimiter")
 	rootCmd.PersistentFlags().StringArrayVar(&flagExtraExts, "ext", nil, "Additional template file extensions (e.g., md, txt). Repeatable.")
