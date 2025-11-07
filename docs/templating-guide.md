@@ -691,6 +691,165 @@ p95_memory: {{ percentile $memoryGB 95 }} GB
 | `clamp` | Clamp value to range | `{{ clamp 15 0 10 }}` → 10 |
 | `roundTo` | Round to N decimals | `{{ roundTo 3.14159 2 }}` → 3.14 |
 
+### Enhanced JSON Querying
+
+Advanced JSON path queries using gjson syntax:
+
+```gotmpl
+{{- $json := `{
+  "users": [
+    {"name": "Alice", "age": 30, "active": true},
+    {"name": "Bob", "age": 25, "active": false},
+    {"name": "Charlie", "age": 35, "active": true}
+  ],
+  "config": {"timeout": 300}
+}` }}
+
+# Get specific field
+{{ jsonPath $json "config.timeout" }}  # → 300
+
+# Query array (returns slice)
+{{- $activeNames := jsonQuery $json "users.#(active==true).name" }}
+{{- range $activeNames }}
+- {{ . }}
+{{- end }}
+# Output:
+# - Alice
+# - Charlie
+
+# Modify JSON
+{{- $updated := jsonSet $json "config.debug" true }}
+{{- $updated := jsonSet $updated "config.version" "2.0" }}
+{{ $updated }}
+```
+
+**gjson Query Syntax**:
+- `.field` - Simple field access
+- `users.#.name` - Get all array elements' name field
+- `users.#(age>30)` - Filter with condition
+- `users.#(active==true).name` - Filter + field access
+
+**Use cases**: API response processing, complex data transformations, dynamic JSON modification.
+
+### Advanced Date Parsing
+
+Intelligent date parsing and calculations:
+
+```gotmpl
+# Parse any common date format automatically
+{{ dateParse "2024-03-15" | date "2006-01-02" }}
+{{ dateParse "March 15, 2024" | date "2006-01-02" }}
+{{ dateParse "15/03/2024" | date "2006-01-02" }}
+# All parse to: 2024-03-15
+
+# Add durations (supports human-friendly syntax)
+{{ dateAdd "2024-01-01" "7 days" | date "2006-01-02" }}      # → 2024-01-08
+{{ dateAdd "2024-01-01" "2 weeks" | date "2006-01-02" }}     # → 2024-01-15
+{{ dateAdd "2024-01-01" "1 month 2 days" | date "2006-01-02" }}
+
+# Generate date ranges
+{{- range dateRange "2024-01-01" "2024-01-03" }}
+- {{ . | date "January 2, 2006" }}
+{{- end }}
+
+# Count business days (excludes weekends)
+{{- $days := workdays "2024-01-01" "2024-01-31" }}
+Business days in January: {{ $days }}
+```
+
+**Supported Date Formats**:
+- ISO 8601: `2024-03-15`, `2024-03-15T10:30:00Z`
+- Human: `March 15, 2024`, `15 March 2024`
+- Numeric: `03/15/2024`, `15/03/2024`
+- Unix timestamps
+
+**Duration Units**: `years`, `months`, `weeks`, `days`, `hours`, `minutes`, `seconds`
+
+**Example: Project Timeline**
+```gotmpl
+{{- $start := dateParse .project.startDate }}
+{{- $duration := "12 weeks" }}
+{{- $end := dateAdd .project.startDate $duration }}
+
+Project: {{ .project.name }}
+Duration: {{ workdays .project.startDate $end }} business days
+
+Sprint Schedule:
+{{- range $sprint := 0 | until 6 }}
+{{- $sprintStart := dateAdd .project.startDate (printf "%d weeks" (mul $sprint 2)) }}
+{{- $sprintEnd := dateAdd $sprintStart "2 weeks" }}
+Sprint {{ add $sprint 1 }}: {{ $sprintStart | date "Jan 2" }} - {{ $sprintEnd | date "Jan 2" }}
+{{- end }}
+```
+
+**Use cases**: Schedule generation, SLA tracking, date calculations, business day counting.
+
+### XML Support
+
+Basic XML serialization and parsing:
+
+```gotmpl
+# Generate XML from data
+{{- $config := dict
+    "server" (dict "host" "localhost" "port" 8080)
+    "database" (dict "host" "db.example.com" "port" 5432)
+}}
+
+{{ $config | toXml }}
+# Output:
+# <root>
+#   <server>
+#     <host>localhost</host>
+#     <port>8080</port>
+#   </server>
+#   <database>
+#     <host>db.example.com</host>
+#     <port>5432</port>
+#   </database>
+# </root>
+
+# Parse XML to data structure
+{{- $xml := "<root><name>test</name><count>42</count></root>" }}
+{{- $data := fromXml $xml }}
+
+Name: {{ $data.root.name }}        # → test
+Count: {{ $data.root.count }}      # → 42
+```
+
+**XML Rules**:
+- Maps become nested elements
+- Arrays become numbered items (item0, item1, etc.)
+- Strings/numbers become text content
+- Parsing preserves hierarchy
+
+**Use cases**: XML config generation, SOAP APIs, Maven pom.xml, legacy system integration.
+
+### Advanced Function Reference
+
+**JSON Querying Functions**
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `jsonPath` | Query JSON with path | `{{ jsonPath $json "users.#.name" }}` |
+| `jsonQuery` | Query JSON, return array | `{{ jsonQuery $json "items.#.price" }}` |
+| `jsonSet` | Modify JSON at path | `{{ jsonSet $json "config.enabled" true }}` |
+
+**Date Parsing Functions**
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `dateParse` | Parse any date format | `{{ dateParse "March 15, 2024" }}` |
+| `dateAdd` | Add duration to date | `{{ dateAdd "2024-01-01" "7 days" }}` |
+| `dateRange` | Generate date range | `{{ dateRange "2024-01-01" "2024-01-07" }}` |
+| `workdays` | Count business days | `{{ workdays "2024-01-01" "2024-01-15" }}` |
+
+**XML Functions**
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `toXml` | Serialize to XML | `{{ dict "name" "test" \| toXml }}` |
+| `fromXml` | Parse XML to map | `{{ fromXml $xmlString }}` |
+
 ---
 
 ## 8. Helper Templates and Pre-Render Variables
