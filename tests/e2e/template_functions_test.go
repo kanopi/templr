@@ -123,6 +123,7 @@ count: {{ $data.count }}`
 	})
 }
 
+//nolint:dupl // Test patterns are intentionally similar
 func TestPathFunctions(t *testing.T) {
 	start, _ := os.Getwd()
 	bin := buildTemplr(t, start)
