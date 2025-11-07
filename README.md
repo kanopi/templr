@@ -21,7 +21,7 @@ templr is a powerful Go-based templating CLI inspired by Helm and Go's `text/tem
 📝 **Configuration Files** - Project and user-level `.templr.yaml` support
 🎯 **Strict Validation** - Catch undefined variables and errors early
 🔧 **100+ Functions** - Full Sprig function library included
-📁 **`.Files` API** - Access files during template rendering
+📁 **Enhanced `.Files` API** - Read, parse (JSON/YAML), encode (Base64/Hex), and inspect files
 🚀 **CI/CD Ready** - Exit codes, JSON output, GitHub Actions support
 
 ## Quick Start
