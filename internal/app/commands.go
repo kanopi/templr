@@ -3,15 +3,21 @@ package app
 
 import (
 	"bytes"
+	"encoding/base32"
+	"encoding/base64"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"math/big"
 	"net"
 	"net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -19,6 +25,7 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/dustin/go-humanize"
 	"github.com/kanopi/templr/pkg/templr"
+	"github.com/montanaflynn/stats"
 	toml "github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 )
@@ -315,7 +322,380 @@ func buildFuncMap(tpl **template.Template) template.FuncMap {
 		return uuidRegex.MatchString(uuid)
 	}
 
+	// Advanced Base64 & Encoding functions
+	funcs["base64url"] = func(data string) string {
+		return base64.URLEncoding.EncodeToString([]byte(data))
+	}
+
+	funcs["base64urlDecode"] = func(encoded string) (string, error) {
+		decoded, err := base64.URLEncoding.DecodeString(encoded)
+		if err != nil {
+			return "", err
+		}
+		return string(decoded), nil
+	}
+
+	funcs["base32"] = func(data string) string {
+		return base32.StdEncoding.EncodeToString([]byte(data))
+	}
+
+	funcs["base32Decode"] = func(encoded string) (string, error) {
+		decoded, err := base32.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			return "", err
+		}
+		return string(decoded), nil
+	}
+
+	// CSV functions
+	funcs["toCsv"] = func(data any) (string, error) {
+		var buf bytes.Buffer
+		w := csv.NewWriter(&buf)
+
+		switch v := data.(type) {
+		case []map[string]any:
+			if len(v) == 0 {
+				return "", nil
+			}
+			// Get headers from first row
+			var headers []string
+			for k := range v[0] {
+				headers = append(headers, k)
+			}
+			if err := w.Write(headers); err != nil {
+				return "", err
+			}
+			// Write rows
+			for _, row := range v {
+				var record []string
+				for _, h := range headers {
+					record = append(record, fmt.Sprint(row[h]))
+				}
+				if err := w.Write(record); err != nil {
+					return "", err
+				}
+			}
+		case [][]string:
+			for _, row := range v {
+				if err := w.Write(row); err != nil {
+					return "", err
+				}
+			}
+		default:
+			return "", fmt.Errorf("toCsv: unsupported type %T", data)
+		}
+
+		w.Flush()
+		if err := w.Error(); err != nil {
+			return "", err
+		}
+		return buf.String(), nil
+	}
+
+	funcs["fromCsv"] = func(csvData string) ([]map[string]string, error) {
+		r := csv.NewReader(strings.NewReader(csvData))
+		records, err := r.ReadAll()
+		if err != nil {
+			return nil, err
+		}
+		if len(records) == 0 {
+			return []map[string]string{}, nil
+		}
+
+		headers := records[0]
+		var result []map[string]string
+
+		for i := 1; i < len(records); i++ {
+			row := make(map[string]string)
+			for j, value := range records[i] {
+				if j < len(headers) {
+					row[headers[j]] = value
+				}
+			}
+			result = append(result, row)
+		}
+
+		return result, nil
+	}
+
+	funcs["csvColumn"] = func(csvData, columnName string) ([]string, error) {
+		r := csv.NewReader(strings.NewReader(csvData))
+		records, err := r.ReadAll()
+		if err != nil {
+			return nil, err
+		}
+		if len(records) == 0 {
+			return []string{}, nil
+		}
+
+		headers := records[0]
+		columnIndex := -1
+		for i, h := range headers {
+			if h == columnName {
+				columnIndex = i
+				break
+			}
+		}
+		if columnIndex == -1 {
+			return nil, fmt.Errorf("column %q not found", columnName)
+		}
+
+		var result []string
+		for i := 1; i < len(records); i++ {
+			if columnIndex < len(records[i]) {
+				result = append(result, records[i][columnIndex])
+			}
+		}
+
+		return result, nil
+	}
+
+	// Network utility functions
+	funcs["cidrContains"] = func(ip, cidr string) (bool, error) {
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return false, fmt.Errorf("invalid CIDR: %w", err)
+		}
+		parsedIP := net.ParseIP(ip)
+		if parsedIP == nil {
+			return false, fmt.Errorf("invalid IP address: %s", ip)
+		}
+		return ipNet.Contains(parsedIP), nil
+	}
+
+	funcs["cidrHosts"] = func(cidr string) ([]string, error) {
+		ip, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid CIDR: %w", err)
+		}
+
+		// Safety check: limit to reasonable sizes
+		ones, bits := ipNet.Mask.Size()
+		hostBits := bits - ones
+		if hostBits > 10 { // Max 1024 hosts
+			return nil, fmt.Errorf("CIDR range too large (max /22 for IPv4, /118 for IPv6)")
+		}
+
+		var ips []string
+		for ip := ip.Mask(ipNet.Mask); ipNet.Contains(ip); incIP(ip) {
+			ips = append(ips, ip.String())
+		}
+
+		// Remove network and broadcast addresses for IPv4
+		if len(ips) > 2 && bits == 32 {
+			return ips[1 : len(ips)-1], nil
+		}
+		return ips, nil
+	}
+
+	funcs["ipAdd"] = func(ip string, offset any) (string, error) {
+		parsedIP := net.ParseIP(ip)
+		if parsedIP == nil {
+			return "", fmt.Errorf("invalid IP address: %s", ip)
+		}
+
+		var offsetInt int64
+		switch v := offset.(type) {
+		case int:
+			offsetInt = int64(v)
+		case int64:
+			offsetInt = v
+		case float64:
+			offsetInt = int64(v)
+		default:
+			return "", fmt.Errorf("offset must be numeric, got %T", offset)
+		}
+
+		ipBigInt := new(big.Int).SetBytes(parsedIP)
+		ipBigInt.Add(ipBigInt, big.NewInt(offsetInt))
+
+		var newIP net.IP
+		if parsedIP.To4() != nil {
+			newIP = net.IP(ipBigInt.Bytes())
+			// Ensure it's 4 bytes
+			if len(newIP) > 4 {
+				newIP = newIP[len(newIP)-4:]
+			}
+		} else {
+			bytes := ipBigInt.Bytes()
+			newIP = make(net.IP, 16)
+			copy(newIP[16-len(bytes):], bytes)
+		}
+
+		return newIP.String(), nil
+	}
+
+	funcs["ipVersion"] = func(ip string) int {
+		parsed := net.ParseIP(ip)
+		if parsed == nil {
+			return 0
+		}
+		if parsed.To4() != nil {
+			return 4
+		}
+		return 6
+	}
+
+	funcs["ipPrivate"] = func(ip string) bool {
+		parsed := net.ParseIP(ip)
+		if parsed == nil {
+			return false
+		}
+		return parsed.IsPrivate()
+	}
+
+	// Math and Statistics functions
+	funcs["sum"] = func(numbers any) (float64, error) {
+		floats, err := toFloat64Slice(numbers)
+		if err != nil {
+			return 0, err
+		}
+		return stats.Sum(floats)
+	}
+
+	funcs["avg"] = func(numbers any) (float64, error) {
+		floats, err := toFloat64Slice(numbers)
+		if err != nil {
+			return 0, err
+		}
+		return stats.Mean(floats)
+	}
+
+	funcs["median"] = func(numbers any) (float64, error) {
+		floats, err := toFloat64Slice(numbers)
+		if err != nil {
+			return 0, err
+		}
+		return stats.Median(floats)
+	}
+
+	funcs["stddev"] = func(numbers any) (float64, error) {
+		floats, err := toFloat64Slice(numbers)
+		if err != nil {
+			return 0, err
+		}
+		return stats.StandardDeviation(floats)
+	}
+
+	funcs["percentile"] = func(numbers, p any) (float64, error) {
+		floats, err := toFloat64Slice(numbers)
+		if err != nil {
+			return 0, err
+		}
+
+		var percentile float64
+		switch v := p.(type) {
+		case int:
+			percentile = float64(v)
+		case int64:
+			percentile = float64(v)
+		case float64:
+			percentile = v
+		default:
+			return 0, fmt.Errorf("percentile must be numeric, got %T", p)
+		}
+
+		return stats.Percentile(floats, percentile)
+	}
+
+	funcs["clamp"] = func(value, minValue, maxValue any) (float64, error) {
+		v, err := toFloat64(value)
+		if err != nil {
+			return 0, err
+		}
+		minVal, err := toFloat64(minValue)
+		if err != nil {
+			return 0, err
+		}
+		maxVal, err := toFloat64(maxValue)
+		if err != nil {
+			return 0, err
+		}
+
+		return math.Max(minVal, math.Min(maxVal, v)), nil
+	}
+
+	funcs["roundTo"] = func(value, decimals any) (float64, error) {
+		v, err := toFloat64(value)
+		if err != nil {
+			return 0, err
+		}
+
+		var dec int
+		switch d := decimals.(type) {
+		case int:
+			dec = d
+		case int64:
+			dec = int(d)
+		case float64:
+			dec = int(d)
+		default:
+			return 0, fmt.Errorf("decimals must be numeric, got %T", decimals)
+		}
+
+		multiplier := math.Pow(10, float64(dec))
+		return math.Round(v*multiplier) / multiplier, nil
+	}
+
 	return funcs
+}
+
+// Helper function to increment IP address
+func incIP(ip net.IP) {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
+}
+
+// Helper function to convert various types to float64
+func toFloat64(val any) (float64, error) {
+	switch v := val.(type) {
+	case int:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	case float64:
+		return v, nil
+	case string:
+		return strconv.ParseFloat(v, 64)
+	default:
+		return 0, fmt.Errorf("cannot convert %T to float64", val)
+	}
+}
+
+// Helper function to convert slice/array to []float64
+func toFloat64Slice(val any) ([]float64, error) {
+	switch v := val.(type) {
+	case []float64:
+		return v, nil
+	case []int:
+		result := make([]float64, len(v))
+		for i, n := range v {
+			result[i] = float64(n)
+		}
+		return result, nil
+	case []int64:
+		result := make([]float64, len(v))
+		for i, n := range v {
+			result[i] = float64(n)
+		}
+		return result, nil
+	case []any:
+		result := make([]float64, len(v))
+		for i, item := range v {
+			f, err := toFloat64(item)
+			if err != nil {
+				return nil, err
+			}
+			result[i] = f
+		}
+		return result, nil
+	default:
+		return nil, fmt.Errorf("cannot convert %T to []float64", val)
+	}
 }
 
 // buildValues constructs the values map from defaults, data files, and --set overrides
