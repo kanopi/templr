@@ -23,7 +23,8 @@ func TestDetectMimeType(t *testing.T) {
 		{"unknown.xyz", "data:application/octet-stream;base64,"},
 	}
 
-	bin := buildTemplr(t, "../..")
+	start, _ := os.Getwd()
+	bin := buildTemplr(t, start)
 
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
