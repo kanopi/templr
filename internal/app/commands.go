@@ -1613,9 +1613,9 @@ func debugf(debug bool, format string, args ...any) {
 
 func debugSection(debug bool, title string) {
 	if debug {
-		fmt.Fprintf(os.Stderr, "\n"+strings.Repeat("=", 60)+"\n")
+		fmt.Fprint(os.Stderr, "\n"+strings.Repeat("=", 60)+"\n")
 		fmt.Fprintf(os.Stderr, "[DEBUG] %s\n", title)
-		fmt.Fprintf(os.Stderr, strings.Repeat("=", 60)+"\n")
+		fmt.Fprint(os.Stderr, strings.Repeat("=", 60)+"\n")
 	}
 }
 
