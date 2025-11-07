@@ -489,6 +489,208 @@ request_id: {{ .requestID }}
 | `isIPv6` | Check if valid IPv6 | `{{ isIPv6 "2001:db8::1" }}` → true |
 | `isUUID` | Check if valid UUID | `{{ isUUID "550e8400-e29b-41d4-a716-446655440000" }}` → true |
 
+### Advanced Encoding Functions
+
+URL-safe and alternative encoding schemes:
+
+```gotmpl
+# URL-safe base64 (no padding issues)
+{{ "hello world" | base64url }}
+# Output: aGVsbG8gd29ybGQ=
+
+# Decode URL-safe base64
+{{ "aGVsbG8gd29ybGQ=" | base64urlDecode }}
+# Output: hello world
+
+# Base32 encoding (DNS-safe, case-insensitive)
+{{ "hello" | base32 }}
+# Output: NBSWY3DP
+
+# Base32 decoding
+{{ "NBSWY3DP" | base32Decode }}
+# Output: hello
+```
+
+**Use cases**: URL-safe tokens, DNS-compatible identifiers, case-insensitive encoding.
+
+### CSV Support
+
+Parse and generate CSV data:
+
+```gotmpl
+# Parse CSV to slice of maps
+{{- $csv := `hostname,ip,role
+web1,10.0.0.10,webserver
+web2,10.0.0.11,webserver
+db1,10.0.0.20,database` }}
+
+{{- $servers := fromCsv $csv }}
+{{- range $servers }}
+- {{ .hostname }}: {{ .ip }} ({{ .role }})
+{{- end }}
+
+# Extract single column
+{{- $hostnames := csvColumn $csv "hostname" }}
+Hosts: {{ join ", " $hostnames }}
+# Output: Hosts: web1, web2, db1
+
+# Generate CSV from data
+{{- $data := list
+    (dict "name" "Alice" "age" 30)
+    (dict "name" "Bob" "age" 25)
+}}
+{{ $data | toCsv }}
+```
+
+**Use cases**: Server inventory, bulk configuration, data import/export.
+
+### Network Utility Functions
+
+IP address manipulation and CIDR operations:
+
+```gotmpl
+# Check if IP is in CIDR range
+{{ cidrContains "10.0.0.5" "10.0.0.0/24" }}
+# Output: true
+
+# List usable hosts in CIDR (max /22)
+{{- $hosts := cidrHosts "10.0.0.0/30" }}
+{{- range $hosts }}
+- {{ . }}
+{{- end }}
+# Output:
+# - 10.0.0.1
+# - 10.0.0.2
+
+# IP address arithmetic
+{{ ipAdd "10.0.0.1" 5 }}
+# Output: 10.0.0.6
+
+# Detect IP version
+{{ ipVersion "192.168.1.1" }}  # → 4
+{{ ipVersion "2001:db8::1" }}  # → 6
+
+# Check if private IP
+{{ ipPrivate "192.168.1.1" }}  # → true
+{{ ipPrivate "8.8.8.8" }}      # → false
+```
+
+**Example: Network Configuration**
+```gotmpl
+{{- $gateway := "10.0.0.1" }}
+{{- $network := "10.0.0.0/24" }}
+
+# Validate gateway in network
+{{- if not (cidrContains $gateway $network) }}
+  {{- fail "Gateway must be within network CIDR" }}
+{{- end }}
+
+# Allocate IP addresses
+gateway={{ $gateway }}
+dns_primary={{ ipAdd $gateway 1 }}
+dns_secondary={{ ipAdd $gateway 2 }}
+dhcp_start={{ ipAdd $gateway 10 }}
+dhcp_end={{ ipAdd $gateway 100 }}
+```
+
+**Use cases**: Network configuration, IP allocation, subnet validation, firewall rules.
+
+### Math & Statistics Functions
+
+Statistical operations and calculations:
+
+```gotmpl
+# Sum and average
+{{- $numbers := list 1 2 3 4 5 }}
+Sum: {{ sum $numbers }}         # → 15
+Average: {{ avg $numbers }}     # → 3
+
+# Median and standard deviation
+{{- $values := list 2 4 4 4 5 5 7 9 }}
+Median: {{ median $values }}    # → 4.5
+Std Dev: {{ stddev $values | roundTo 2 }}  # → 2.0
+
+# Percentiles
+{{- $data := list 1 2 3 4 5 6 7 8 9 10 }}
+P50: {{ percentile $data 50 }}  # → 5.5
+P90: {{ percentile $data 90 }}  # → 9
+P95: {{ percentile $data 95 }}  # → 9.5
+
+# Clamp values to range
+{{ clamp -5 0 10 }}    # → 0  (below min)
+{{ clamp 5 0 10 }}     # → 5  (within range)
+{{ clamp 15 0 10 }}    # → 10 (above max)
+
+# Round to N decimal places
+{{ roundTo 3.14159 2 }}  # → 3.14
+{{ roundTo 2.5 0 }}      # → 3
+```
+
+**Example: Resource Allocation**
+```gotmpl
+{{- $cpuCores := list 2 4 2 8 4 2 }}
+{{- $requestedCPU := .request.cpu | default 4 }}
+
+# Statistics
+total_cpu: {{ sum $cpuCores }}
+average_cpu: {{ avg $cpuCores | roundTo 1 }}
+median_cpu: {{ median $cpuCores }}
+
+# Clamp to organizational limits
+{{- $allocatedCPU := clamp $requestedCPU 1 32 }}
+cpu_limit: {{ $allocatedCPU }}
+{{- if ne $requestedCPU $allocatedCPU }}
+# Note: CPU request clamped from {{ $requestedCPU }} to {{ $allocatedCPU }}
+{{- end }}
+
+# Calculate percentiles for capacity planning
+{{- $memoryGB := list 4 8 4 16 8 4 }}
+p95_memory: {{ percentile $memoryGB 95 }} GB
+```
+
+**Use cases**: Resource calculations, capacity planning, statistical reports, validation.
+
+### Extended Function Reference
+
+**Encoding Functions**
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `base64url` | URL-safe base64 encode | `{{ "data" \| base64url }}` → "ZGF0YQ==" |
+| `base64urlDecode` | Decode URL-safe base64 | `{{ "ZGF0YQ==" \| base64urlDecode }}` → "data" |
+| `base32` | Base32 encode (RFC 4648) | `{{ "hello" \| base32 }}` → "NBSWY3DP" |
+| `base32Decode` | Decode base32 string | `{{ "NBSWY3DP" \| base32Decode }}` → "hello" |
+
+**CSV Functions**
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `fromCsv` | Parse CSV to slice of maps | `{{ $csv \| fromCsv }}` |
+| `csvColumn` | Extract column as slice | `{{ csvColumn $csv "name" }}` |
+| `toCsv` | Serialize data to CSV | `{{ $data \| toCsv }}` |
+
+**Network Functions**
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `cidrContains` | Check if IP in CIDR range | `{{ cidrContains "10.0.0.5" "10.0.0.0/24" }}` → true |
+| `cidrHosts` | List hosts in CIDR (max /22) | `{{ cidrHosts "10.0.0.0/30" }}` |
+| `ipAdd` | IP address arithmetic | `{{ ipAdd "10.0.0.1" 5 }}` → "10.0.0.6" |
+| `ipVersion` | Detect IP version (4 or 6) | `{{ ipVersion "192.168.1.1" }}` → 4 |
+| `ipPrivate` | Check if private IP | `{{ ipPrivate "192.168.1.1" }}` → true |
+
+**Math & Statistics Functions**
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `sum` | Sum of array | `{{ sum (list 1 2 3) }}` → 6 |
+| `avg` | Average of array | `{{ avg (list 2 4 6) }}` → 4 |
+| `median` | Median value | `{{ median (list 1 2 3 4 5) }}` → 3 |
+| `stddev` | Standard deviation | `{{ stddev (list 2 4 4 4 5 5 7 9) }}` |
+| `percentile` | Calculate percentile | `{{ percentile (list 1 2 3 4 5) 90 }}` |
+| `clamp` | Clamp value to range | `{{ clamp 15 0 10 }}` → 10 |
+| `roundTo` | Round to N decimals | `{{ roundTo 3.14159 2 }}` → 3.14 |
+
 ---
 
 ## 8. Helper Templates and Pre-Render Variables
