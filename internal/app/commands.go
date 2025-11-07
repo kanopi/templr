@@ -23,10 +23,14 @@ import (
 	"time"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/araddon/dateparse"
+	"github.com/beevik/etree"
 	"github.com/dustin/go-humanize"
 	"github.com/kanopi/templr/pkg/templr"
 	"github.com/montanaflynn/stats"
 	toml "github.com/pelletier/go-toml/v2"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"gopkg.in/yaml.v3"
 )
 
@@ -637,6 +641,126 @@ func buildFuncMap(tpl **template.Template) template.FuncMap {
 		return math.Round(v*multiplier) / multiplier, nil
 	}
 
+	// Enhanced JSON Querying functions (Tier 3)
+	funcs["jsonPath"] = func(jsonData, path string) (any, error) {
+		result := gjson.Get(jsonData, path)
+		if !result.Exists() {
+			return nil, nil
+		}
+		return result.Value(), nil
+	}
+
+	funcs["jsonQuery"] = func(jsonData, path string) ([]any, error) {
+		result := gjson.Get(jsonData, path)
+		if !result.Exists() {
+			return []any{}, nil
+		}
+		if result.IsArray() {
+			var values []any
+			for _, item := range result.Array() {
+				values = append(values, item.Value())
+			}
+			return values, nil
+		}
+		return []any{result.Value()}, nil
+	}
+
+	funcs["jsonSet"] = func(jsonData, path string, value any) (string, error) {
+		result, err := sjson.Set(jsonData, path, value)
+		if err != nil {
+			return "", err
+		}
+		return result, nil
+	}
+
+	// Advanced Date Parsing functions (Tier 3)
+	funcs["dateParse"] = func(dateStr string) (time.Time, error) {
+		return dateparse.ParseAny(dateStr)
+	}
+
+	funcs["dateAdd"] = func(dateStr, duration string) (time.Time, error) {
+		t, err := dateparse.ParseAny(dateStr)
+		if err != nil {
+			return time.Time{}, err
+		}
+
+		// Parse duration string (supports "7 days", "2 weeks 3 days", etc.)
+		d, err := parseDurationString(duration)
+		if err != nil {
+			return time.Time{}, err
+		}
+
+		return t.Add(d), nil
+	}
+
+	funcs["dateRange"] = func(startStr, endStr string) ([]time.Time, error) {
+		start, err := dateparse.ParseAny(startStr)
+		if err != nil {
+			return nil, err
+		}
+		end, err := dateparse.ParseAny(endStr)
+		if err != nil {
+			return nil, err
+		}
+
+		var dates []time.Time
+		for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+			dates = append(dates, d)
+		}
+		return dates, nil
+	}
+
+	funcs["workdays"] = func(startStr, endStr string) (int, error) {
+		start, err := dateparse.ParseAny(startStr)
+		if err != nil {
+			return 0, err
+		}
+		end, err := dateparse.ParseAny(endStr)
+		if err != nil {
+			return 0, err
+		}
+
+		count := 0
+		for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+			weekday := d.Weekday()
+			if weekday != time.Saturday && weekday != time.Sunday {
+				count++
+			}
+		}
+		return count, nil
+	}
+
+	// XML Support functions (Tier 3)
+	funcs["toXml"] = func(data any) (string, error) {
+		doc := etree.NewDocument()
+		doc.Indent(2)
+
+		if err := buildXMLElement(doc.CreateElement("root"), data); err != nil {
+			return "", err
+		}
+
+		var buf bytes.Buffer
+		if _, err := doc.WriteTo(&buf); err != nil {
+			return "", err
+		}
+		return buf.String(), nil
+	}
+
+	funcs["fromXml"] = func(xmlData string) (map[string]any, error) {
+		doc := etree.NewDocument()
+		if err := doc.ReadFromString(xmlData); err != nil {
+			return nil, err
+		}
+
+		root := doc.Root()
+		if root == nil {
+			return map[string]any{}, nil
+		}
+
+		result := parseXMLElement(root)
+		return map[string]any{root.Tag: result}, nil
+	}
+
 	return funcs
 }
 
@@ -696,6 +820,127 @@ func toFloat64Slice(val any) ([]float64, error) {
 	default:
 		return nil, fmt.Errorf("cannot convert %T to []float64", val)
 	}
+}
+
+// Helper function to parse duration strings like "7 days", "2 weeks 3 days"
+func parseDurationString(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("empty duration string")
+	}
+
+	// Try standard Go duration first (e.g., "24h", "1h30m")
+	if d, err := time.ParseDuration(s); err == nil {
+		return d, nil
+	}
+
+	// Parse human-friendly durations (e.g., "7 days", "2 weeks 3 days")
+	var total time.Duration
+	parts := strings.Fields(s)
+
+	for i := 0; i < len(parts); i += 2 {
+		if i+1 >= len(parts) {
+			return 0, fmt.Errorf("invalid duration format: %s", s)
+		}
+
+		value, err := strconv.ParseFloat(parts[i], 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid number in duration: %s", parts[i])
+		}
+
+		unit := strings.ToLower(parts[i+1])
+		unit = strings.TrimSuffix(unit, "s") // Handle both "day" and "days"
+
+		switch unit {
+		case "year":
+			total += time.Duration(value * 365 * 24 * float64(time.Hour))
+		case "month":
+			total += time.Duration(value * 30 * 24 * float64(time.Hour))
+		case "week":
+			total += time.Duration(value * 7 * 24 * float64(time.Hour))
+		case "day":
+			total += time.Duration(value * 24 * float64(time.Hour))
+		case "hour", "h":
+			total += time.Duration(value * float64(time.Hour))
+		case "minute", "min", "m":
+			total += time.Duration(value * float64(time.Minute))
+		case "second", "sec", "s":
+			total += time.Duration(value * float64(time.Second))
+		default:
+			return 0, fmt.Errorf("unknown duration unit: %s", unit)
+		}
+	}
+
+	return total, nil
+}
+
+// Helper function to build XML element from Go data
+func buildXMLElement(elem *etree.Element, data any) error {
+	switch v := data.(type) {
+	case map[string]any:
+		for key, val := range v {
+			child := elem.CreateElement(key)
+			if err := buildXMLElement(child, val); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for i, item := range v {
+			child := elem.CreateElement(fmt.Sprintf("item%d", i))
+			if err := buildXMLElement(child, item); err != nil {
+				return err
+			}
+		}
+	case string:
+		elem.SetText(v)
+	case int, int64, float64, bool:
+		elem.SetText(fmt.Sprintf("%v", v))
+	case nil:
+		// Empty element
+	default:
+		elem.SetText(fmt.Sprintf("%v", v))
+	}
+	return nil
+}
+
+// Helper function to parse XML element to Go data
+func parseXMLElement(elem *etree.Element) any {
+	// If element has no children, return text content
+	if len(elem.ChildElements()) == 0 {
+		text := elem.Text()
+		if text == "" {
+			return nil
+		}
+		return text
+	}
+
+	// If all children have the same tag, treat as array
+	children := elem.ChildElements()
+	if len(children) > 0 {
+		firstTag := children[0].Tag
+		allSame := true
+		for _, child := range children {
+			if child.Tag != firstTag {
+				allSame = false
+				break
+			}
+		}
+
+		if allSame {
+			var arr []any
+			for _, child := range children {
+				arr = append(arr, parseXMLElement(child))
+			}
+			return arr
+		}
+	}
+
+	// Otherwise, treat as map
+	result := make(map[string]any)
+	for _, child := range children {
+		result[child.Tag] = parseXMLElement(child)
+	}
+	return result
 }
 
 // buildValues constructs the values map from defaults, data files, and --set overrides
