@@ -104,6 +104,92 @@ homebrew_casks:
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/templr"]
           end
 
+# Chocolatey package for Windows installation
+# Requires CHOCOLATEY_API_KEY environment variable
+# Set skip_publish: true or remove this section if not using Chocolatey
+chocolateys:
+  - name: templr
+    title: templr
+    authors: Kanopi
+    project_url: https://github.com/kanopi/templr
+    url_template: "https://github.com/kanopi/templr/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    icon_url: "https://raw.githubusercontent.com/kanopi/templr/main/docs/icon.png"
+    copyright: "2024 Kanopi"
+    license_url: https://github.com/kanopi/templr/blob/main/LICENSE
+    require_license_acceptance: false
+    project_source_url: https://github.com/kanopi/templr
+    docs_url: https://github.com/kanopi/templr/blob/main/README.md
+    bug_tracker_url: https://github.com/kanopi/templr/issues
+    tags: "templating cli go templates sprig helm"
+    summary: A powerful Go template rendering CLI tool with Sprig functions
+    description: |
+      templr is a Go-based templating CLI inspired by Helm and Go's text/template package.
+      It renders templates from single files or entire directories, with support for helpers,
+      strict mode, guards, and various data input formats.
+    release_notes: "https://github.com/kanopi/templr/releases/tag/{{ .Tag }}"
+    api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
+    source_repo: "https://push.chocolatey.org/"
+
+# APT/DEB packages for Debian/Ubuntu
+nfpms:
+  - id: templr-deb
+    package_name: templr
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: Kanopi
+    homepage: https://github.com/kanopi/templr
+    maintainer: Kanopi <info@kanopi.com>
+    description: "A powerful Go template rendering CLI tool with Sprig functions"
+    license: MIT
+    formats:
+      - deb
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/templr/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/templr/README.md
+
+  - id: templr-rpm
+    package_name: templr
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: Kanopi
+    homepage: https://github.com/kanopi/templr
+    maintainer: Kanopi <info@kanopi.com>
+    description: "A powerful Go template rendering CLI tool with Sprig functions"
+    license: MIT
+    formats:
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/templr/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/templr/README.md
+
+  - id: templr-apk
+    package_name: templr
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: Kanopi
+    homepage: https://github.com/kanopi/templr
+    maintainer: Kanopi <info@kanopi.com>
+    description: "A powerful Go template rendering CLI tool with Sprig functions"
+    license: MIT
+    formats:
+      - apk
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/templr/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/templr/README.md
+
+# Publishers for Linux package repositories
+publishers:
+  - name: fury.io
+    ids: [templr-deb, templr-rpm, templr-apk]
+    dir: "{{ dir .ArtifactPath }}"
+    cmd: curl -F package=@{{ .ArtifactPath }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/{{ .Env.FURY_ACCOUNT }}/
+
 dockers_v2:
   - id: templr
     images:
