@@ -95,11 +95,38 @@ jobs:
             - v1-go-mod-{{ checksum "go.sum" }}
             - v1-go-mod-
       - run:
-          name: Install GoReleaser / Syft
+          name: Install GoReleaser / Syft / Chocolatey
           command: |
+            # Install GoReleaser
             curl -sfL https://goreleaser.com/static/run | bash -s -- check
             curl -sL https://git.io/goreleaser | bash -s -- --version
+
+            # Install Syft
             curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
+
+            # Install Mono and NuGet (required for Chocolatey)
+            sudo apt-get update
+            sudo apt-get install -y mono-complete
+
+            # Install Chocolatey CLI on Linux
+            # This is needed for GoReleaser to pack .nupkg files
+            if ! command -v choco &> /dev/null; then
+              echo "Installing Chocolatey..."
+              export CHOCO_DIR="/opt/chocolatey"
+              sudo mkdir -p $CHOCO_DIR
+
+              # Download and install choco
+              sudo curl -sL https://chocolatey.org/install.sh -o /tmp/install-choco.sh
+              sudo bash /tmp/install-choco.sh || echo "Chocolatey installation had issues, continuing..."
+
+              # Try to add to PATH
+              if [ -f "/opt/chocolatey/choco" ]; then
+                sudo ln -sf /opt/chocolatey/choco /usr/local/bin/choco
+              fi
+
+              # Verify
+              choco --version && echo "Chocolatey installed successfully" || echo "Warning: Chocolatey not available"
+            fi
       - setup_remote_docker:
           version: 20.10.24
       - run:
