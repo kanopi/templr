@@ -114,7 +114,7 @@ chocolateys:
     project_url: https://github.com/kanopi/templr
     url_template: "https://github.com/kanopi/templr/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     icon_url: "https://raw.githubusercontent.com/kanopi/templr/main/docs/icon.png"
-    copyright: "2024 Kanopi"
+    copyright: "2025 Kanopi"
     license_url: https://github.com/kanopi/templr/blob/main/LICENSE
     require_license_acceptance: false
     project_source_url: https://github.com/kanopi/templr
@@ -183,8 +183,9 @@ nfpms:
       - src: README.md
         dst: /usr/share/doc/templr/README.md
 
-# Publishers for Linux package repositories
+# Publishers for package repositories
 publishers:
+  # Publish Linux packages to Gemfury
   - name: fury.io
     ids: [templr-deb, templr-rpm, templr-apk]
     dir: "{{ dir .ArtifactPath }}"
