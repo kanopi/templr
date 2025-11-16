@@ -25,10 +25,11 @@ builds:
     env: [CGO_ENABLED=0]
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
-    flags: [-trimpath,-buildmode=pie]
+    flags: [-trimpath]
     ldflags:
       - >-
         -s -w
+        -extldflags=-static
         -X main.Version={{ .Version }}
         -X main.Commit={{ .Commit }}
         -X main.Date={{ .Date }}
