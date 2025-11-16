@@ -104,28 +104,36 @@ jobs:
             # Install Syft
             curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
 
-            # Install Mono and NuGet (required for Chocolatey)
+            # Install Mono (required for choco.exe)
             sudo apt-get update
-            sudo apt-get install -y mono-complete
+            sudo apt-get install -y mono-complete wget unzip
 
-            # Install Chocolatey CLI on Linux
-            # This is needed for GoReleaser to pack .nupkg files
+            # Install Chocolatey CLI (portable version)
             if ! command -v choco &> /dev/null; then
-              echo "Installing Chocolatey..."
-              export CHOCO_DIR="/opt/chocolatey"
-              sudo mkdir -p $CHOCO_DIR
+              echo "Installing Chocolatey CLI..."
 
-              # Download and install choco
-              sudo curl -sL https://chocolatey.org/install.sh -o /tmp/install-choco.sh
-              sudo bash /tmp/install-choco.sh || echo "Chocolatey installation had issues, continuing..."
+              # Download and extract Chocolatey portable
+              CHOCO_VERSION="2.5.1"
+              sudo mkdir -p /opt/chocolatey
+              sudo wget -q "https://github.com/chocolatey/choco/releases/download/${CHOCO_VERSION}/chocolatey.v${CHOCO_VERSION}.zip" -O /tmp/choco.zip
+              sudo unzip -q /tmp/choco.zip -d /opt/chocolatey
 
-              # Try to add to PATH
-              if [ -f "/opt/chocolatey/choco" ]; then
-                sudo ln -sf /opt/chocolatey/choco /usr/local/bin/choco
-              fi
+              # Create wrapper script that runs choco.exe with mono
+              sudo tee /usr/local/bin/choco > /dev/null \<\<'EOF'
+              #!/bin/bash
+              exec mono /opt/chocolatey/tools/choco.exe "$@"
+              EOF
+              sudo chmod +x /usr/local/bin/choco
 
               # Verify
-              choco --version && echo "Chocolatey installed successfully" || echo "Warning: Chocolatey not available"
+              if choco --version 2>/dev/null; then
+                echo "✓ Chocolatey CLI installed successfully"
+              else
+                echo "⚠ Warning: Chocolatey installation may have failed"
+              fi
+
+              # Cleanup
+              rm -f /tmp/choco.zip
             fi
       - setup_remote_docker:
           version: 20.10.24
