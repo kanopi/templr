@@ -136,14 +136,14 @@ jobs:
               CHOCO_VERSION="2.5.1"
               sudo mkdir -p /opt/chocolatey || true
 
-              if sudo wget -q "https://github.com/chocolatey/choco/releases/download/${CHOCO_VERSION}/chocolatey.v${CHOCO_VERSION}.zip" -O /tmp/choco.zip; then
+              if sudo wget -q "https://github.com/chocolatey/choco/releases/download/${CHOCO_VERSION}/chocolatey.v${CHOCO_VERSION}.tar.gz" -O /tmp/choco.tar.gz; then
                 echo "✓ Downloaded Chocolatey v${CHOCO_VERSION}"
               else
                 echo "✗ Failed to download Chocolatey"
                 exit 1
               fi
 
-              sudo unzip -q /tmp/choco.zip -d /opt/chocolatey 2>&1 || true
+              sudo tar -xzf /tmp/choco.tar.gz -C /opt/chocolatey 2>&1 || true
 
               # Check if extraction was successful
               if [ -d "/opt/chocolatey/tools" ] && [ -f "/opt/chocolatey/tools/choco.exe" ]; then
@@ -174,7 +174,7 @@ jobs:
               fi
 
               # Cleanup
-              rm -f /tmp/choco.zip
+              rm -f /tmp/choco.tar.gz
             fi
 
             set -e  # Re-enable exit on error for subsequent steps
