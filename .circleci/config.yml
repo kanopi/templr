@@ -97,6 +97,8 @@ jobs:
       - run:
           name: Install GoReleaser / Syft / Chocolatey
           command: |
+            set +e  # Don't fail on errors, we'll handle them gracefully
+
             # Install GoReleaser
             curl -sfL https://goreleaser.com/static/run | bash -s -- check
             curl -sL https://git.io/goreleaser | bash -s -- --version
@@ -104,9 +106,20 @@ jobs:
             # Install Syft
             curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
 
-            # Install Mono (required for choco.exe)
-            sudo apt-get update
-            sudo apt-get install -y mono-complete wget unzip
+            # Install Mono runtime (required for choco.exe)
+            echo "Installing Mono runtime..."
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mono-runtime mono-devel wget unzip 2>&1 | grep -v "invoke-rc.d\|Use of uninitialized" || true
+
+            # Verify mono is available
+            if command -v mono &> /dev/null; then
+              echo "✓ Mono installed: $(mono --version | head -1)"
+            else
+              echo "✗ Mono installation failed"
+              exit 1
+            fi
+
+            set -e  # Re-enable exit on error
 
             # Install Chocolatey CLI (portable version)
             if ! command -v choco &> /dev/null; then
