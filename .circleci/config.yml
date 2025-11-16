@@ -146,7 +146,7 @@ jobs:
               fi
 
               # Create wrapper script that runs choco.exe with mono
-              sudo tee /usr/local/bin/choco > /dev/null <<'EOF'
+              sudo tee /usr/local/bin/choco > /dev/null \<\<'EOF'
               #!/bin/bash
               exec mono /opt/chocolatey/tools/choco.exe "$@"
               EOF
