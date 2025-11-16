@@ -95,89 +95,14 @@ jobs:
             - v1-go-mod-{{ checksum "go.sum" }}
             - v1-go-mod-
       - run:
-          name: Install GoReleaser / Syft / Chocolatey
+          name: Install GoReleaser / Syft
           command: |
-            set +e  # Don't fail on errors, we'll handle them gracefully
-
             # Install GoReleaser
             curl -sfL https://goreleaser.com/static/run | bash -s -- check
             curl -sL https://git.io/goreleaser | bash -s -- --version
 
             # Install Syft
             curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
-
-            # Install Mono runtime (required for choco.exe)
-            # Using the same approach as Chocolatey's official Dockerfile
-            echo "Installing Mono runtime..."
-
-            # Add official Mono repository (same as Chocolatey Dockerfile)
-            sudo apt-get update -qq
-            sudo apt-get install -y gnupg ca-certificates apt-transport-https
-            sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF 2>&1 || true
-            echo "deb https://download.mono-project.com/repo/ubuntu stable-focal main" | sudo tee /etc/apt/sources.list.d/mono-official-stable.list
-
-            # Install mono-complete (as used in official Chocolatey Dockerfile)
-            sudo apt-get update -qq
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mono-complete wget unzip 2>&1 | grep -v "invoke-rc.d\|Use of uninitialized\|policy-rc.d" || true
-
-            # Verify mono is available
-            if command -v mono &> /dev/null; then
-              echo "✓ Mono installed: $(mono --version | head -1)"
-            else
-              echo "✗ Mono installation failed"
-              exit 1
-            fi
-
-            # Install Chocolatey CLI (portable version)
-            if ! command -v choco &> /dev/null; then
-              echo "Installing Chocolatey CLI..."
-
-              # Download and extract Chocolatey portable
-              CHOCO_VERSION="2.5.1"
-              sudo mkdir -p /opt/chocolatey || true
-
-              if sudo wget -q "https://github.com/chocolatey/choco/releases/download/${CHOCO_VERSION}/chocolatey.v${CHOCO_VERSION}.tar.gz" -O /tmp/choco.tar.gz; then
-                echo "✓ Downloaded Chocolatey v${CHOCO_VERSION}"
-              else
-                echo "✗ Failed to download Chocolatey"
-                exit 1
-              fi
-
-              sudo tar -xzf /tmp/choco.tar.gz -C /opt/chocolatey 2>&1 || true
-
-              # Check if extraction was successful
-              if [ -d "/opt/chocolatey/tools" ] && [ -f "/opt/chocolatey/tools/choco.exe" ]; then
-                echo "✓ Extracted Chocolatey"
-              else
-                echo "✗ Failed to extract Chocolatey - tools directory not found"
-                ls -la /opt/chocolatey/ || true
-                exit 1
-              fi
-
-              # Create wrapper script that runs choco.exe with mono
-              # Using simple wrapper (similar to Chocolatey's choco_wrapper)
-              sudo tee /usr/local/bin/choco > /dev/null \<\<'EOF'
-              #!/bin/bash
-              exec mono /opt/chocolatey/tools/choco.exe "$@"
-              EOF
-              sudo chmod +x /usr/local/bin/choco
-
-              # Set ChocolateyInstall environment variable (as in Chocolatey Dockerfile)
-              echo 'export ChocolateyInstall=/opt/chocolatey' >> $BASH_ENV
-              source $BASH_ENV
-
-              # Verify
-              if choco --version 2>&1 | head -1; then
-                echo "✓ Chocolatey CLI installed successfully"
-              else
-                echo "⚠ Warning: Chocolatey may not work correctly"
-              fi
-
-              # Cleanup
-              rm -f /tmp/choco.tar.gz
-            fi
-
-            set -e  # Re-enable exit on error for subsequent steps
       - setup_remote_docker:
           version: 20.10.24
       - run:
@@ -209,7 +134,7 @@ jobs:
                 name: GoReleaser Release
                 command: |
                   # Create GitHub release and build all artifacts
-                  curl -sL https://git.io/goreleaser | bash -s -- release --clean
+                  curl -sL https://git.io/goreleaser | bash -s -- release --clean --skip=chocolatey
             - run:
                 name: Build Web Playground
                 command: |
@@ -217,6 +142,42 @@ jobs:
             - store_artifacts:
                 path: dist
                 destination: templr-artifacts
+            - persist_to_workspace:
+                root: .
+                paths:
+                  - dist
+
+  choco_release:
+    machine:
+      image: windows-server-2019-vs2019:stable   # adjust to valid CircleCI Windows image
+    resource_class: windows.medium
+    steps:
+      - checkout
+
+      # If you persisted dist from Linux, attach workspace:
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: Install Go
+          command: |
+            choco install -y golang
+      - run:
+          name: Install GoReleaser
+          command: |
+            choco install -y goreleaser
+
+      - run:
+          name: Install Chocolatey (already present, but safe)
+          command: |
+            choco --version
+
+      - run:
+          name: GoReleaser Chocolatey Release
+          command: |
+            # Re-run goreleaser on Windows so the chocolatey pipe can run.
+            # We can skip docker/nfpm/etc since Linux already did those:
+            goreleaser release --clean --skip=docker,nfpm,sbom,homebrew
 
 workflows:
   version: 2
@@ -238,3 +199,7 @@ workflows:
       - build:
           <<: *ONLY_TAGS
           name: "Build Release"
+      - choco_release:
+          <<: *ONLY_TAGS
+          requires:
+            - "Build Release"
