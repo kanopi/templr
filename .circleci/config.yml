@@ -107,9 +107,18 @@ jobs:
             curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
 
             # Install Mono runtime (required for choco.exe)
+            # Using the same approach as Chocolatey's official Dockerfile
             echo "Installing Mono runtime..."
+
+            # Add official Mono repository (same as Chocolatey Dockerfile)
             sudo apt-get update -qq
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mono-runtime mono-devel wget unzip 2>&1 | grep -v "invoke-rc.d\|Use of uninitialized" || true
+            sudo apt-get install -y gnupg ca-certificates apt-transport-https
+            sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF 2>&1 || true
+            echo "deb https://download.mono-project.com/repo/ubuntu stable-focal main" | sudo tee /etc/apt/sources.list.d/mono-official-stable.list
+
+            # Install mono-complete (as used in official Chocolatey Dockerfile)
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mono-complete wget unzip 2>&1 | grep -v "invoke-rc.d\|Use of uninitialized\|policy-rc.d" || true
 
             # Verify mono is available
             if command -v mono &> /dev/null; then
@@ -146,11 +155,16 @@ jobs:
               fi
 
               # Create wrapper script that runs choco.exe with mono
+              # Using simple wrapper (similar to Chocolatey's choco_wrapper)
               sudo tee /usr/local/bin/choco > /dev/null \<\<'EOF'
               #!/bin/bash
               exec mono /opt/chocolatey/tools/choco.exe "$@"
               EOF
               sudo chmod +x /usr/local/bin/choco
+
+              # Set ChocolateyInstall environment variable (as in Chocolatey Dockerfile)
+              echo 'export ChocolateyInstall=/opt/chocolatey' >> $BASH_ENV
+              source $BASH_ENV
 
               # Verify
               if choco --version 2>&1 | head -1; then
