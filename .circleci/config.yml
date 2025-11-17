@@ -183,11 +183,12 @@ jobs:
           command: |
             choco install -y goreleaser
       - run:
-          name: Publish Chocolatey Package
+          name: Package and Publish Chocolatey
           command: |
-            # Use existing dist artifacts from Linux build
-            # Only run chocolatey publisher, skip all builds
-            goreleaser release --skip=build,docker,nfpm,sbom,homebrew,announce,validate
+            # Continue the release from Linux build artifacts
+            # This uses the existing dist/ from the workspace
+            # Only runs the Chocolatey packaging/publishing step
+            goreleaser continue --merge --skip=after
 
 workflows:
   version: 2
