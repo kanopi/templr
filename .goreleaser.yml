@@ -188,7 +188,6 @@ publishers:
   # Publish Linux packages to Gemfury
   - name: fury.io
     ids: [templr-deb, templr-rpm, templr-apk]
-    dir: "{{ dir .ArtifactPath }}"
     cmd: curl -F package=@{{ .ArtifactPath }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/{{ .Env.FURY_ACCOUNT }}/
 
 dockers_v2:
