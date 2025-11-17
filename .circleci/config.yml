@@ -156,8 +156,8 @@ jobs:
             - run:
                 name: GoReleaser Release
                 command: |
-                  # Create GitHub release and build all artifacts
-                  curl -sL https://git.io/goreleaser | bash -s -- release --clean --skip=chocolatey
+                  # Create GitHub release and build all artifacts including Chocolatey nupkg
+                  curl -sL https://git.io/goreleaser | bash -s -- release --clean
             - run:
                 name: Build Web Playground
                 command: |
@@ -179,16 +179,18 @@ jobs:
       - attach_workspace:
           at: .
       - run:
-          name: Install GoReleaser
+          name: Publish Chocolatey Package
           command: |
-            choco install -y goreleaser
-      - run:
-          name: Package and Publish Chocolatey
-          command: |
-            # Continue the release from Linux build artifacts
-            # This uses the existing dist/ from the workspace
-            # Only runs the Chocolatey packaging/publishing step
-            goreleaser continue --merge --skip=after
+            # Find and publish the .nupkg created by the Linux build
+            # The nupkg was created with skip_publish: true in .goreleaser.yml
+            $nupkg = Get-ChildItem -Path dist -Filter "*.nupkg" -Recurse | Select-Object -First 1
+            if ($nupkg) {
+              Write-Host "Publishing $($nupkg.FullName) to Chocolatey"
+              choco push $nupkg.FullName --source=https://push.chocolatey.org/ --api-key=$env:CHOCOLATEY_API_KEY
+            } else {
+              Write-Error "No .nupkg file found in dist/"
+              exit 1
+            }
 
 workflows:
   version: 2

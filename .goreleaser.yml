@@ -106,7 +106,7 @@ homebrew_casks:
 
 # Chocolatey package for Windows installation
 # Requires CHOCOLATEY_API_KEY environment variable
-# Set skip_publish: true or remove this section if not using Chocolatey
+# skip_publish is set to true so we can publish manually on Windows
 chocolateys:
   - name: templr
     title: templr
@@ -127,8 +127,7 @@ chocolateys:
       It renders templates from single files or entire directories, with support for helpers,
       strict mode, guards, and various data input formats.
     release_notes: "https://github.com/kanopi/templr/releases/tag/{{ .Tag }}"
-    api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
-    source_repo: "https://push.chocolatey.org/"
+    skip_publish: true
 
 # APT/DEB packages for Debian/Ubuntu
 nfpms:
