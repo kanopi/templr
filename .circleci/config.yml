@@ -86,6 +86,29 @@ jobs:
       - store_test_results:
           path: .out
 
+  test_windows:
+    machine:
+      image: windows-server-2019-vs2019:stable
+    resource_class: windows.medium
+    steps:
+      - checkout
+      - run:
+          name: Install Go
+          command: |
+            choco install -y golang
+      - run:
+          name: Install dependencies
+          command: |
+            go mod tidy
+      - run:
+          name: Build project
+          command: |
+            go build -o .bin/templr.exe .
+      - run:
+          name: Run Go tests
+          command: |
+            go test ./...
+
   build:
     executor: go-executor
     steps:
@@ -147,17 +170,12 @@ jobs:
                 paths:
                   - dist
 
-  choco_release:
+  build_windows:
     machine:
-      image: windows-server-2019-vs2019:stable   # adjust to valid CircleCI Windows image
+      image: windows-server-2019-vs2019:stable
     resource_class: windows.medium
     steps:
       - checkout
-
-      # If you persisted dist from Linux, attach workspace:
-      - attach_workspace:
-          at: .
-
       - run:
           name: Install Go
           command: |
@@ -166,18 +184,36 @@ jobs:
           name: Install GoReleaser
           command: |
             choco install -y goreleaser
-
       - run:
           name: Install Chocolatey (already present, but safe)
           command: |
             choco --version
-
-      - run:
-          name: GoReleaser Chocolatey Release
-          command: |
-            # Re-run goreleaser on Windows so the chocolatey pipe can run.
-            # We can skip docker/nfpm/etc since Linux already did those:
-            goreleaser release --clean --skip=docker,nfpm,sbom,homebrew
+      - when:
+          condition:
+            equal: ["", << pipeline.git.tag >>]
+          steps:
+            - run:
+                name: Build Snapshot (Branch Build)
+                command: |
+                  goreleaser build --snapshot --clean --id templr
+            - store_artifacts:
+                path: dist
+                destination: templr-windows-artifacts
+      - unless:
+          condition:
+            equal: ["", << pipeline.git.tag >>]
+          steps:
+            - attach_workspace:
+                at: .
+            - run:
+                name: GoReleaser Chocolatey Release
+                command: |
+                  # Re-run goreleaser on Windows so the chocolatey pipe can run.
+                  # We can skip docker/nfpm/etc since Linux already did those:
+                  goreleaser release --clean --skip=docker,nfpm,sbom,homebrew
+            - store_artifacts:
+                path: dist
+                destination: templr-windows-artifacts
 
 workflows:
   version: 2
@@ -189,6 +225,8 @@ workflows:
           <<: *ONLY_BRANCHES
       - test:
           <<: *ONLY_BRANCHES
+      - test_windows:
+          <<: *ONLY_BRANCHES
       - build:
           <<: *ONLY_BRANCHES
           name: "Build Branch"
@@ -196,10 +234,20 @@ workflows:
             - lint
             - unit
             - test
+            - test_windows
+      - build_windows:
+          <<: *ONLY_BRANCHES
+          name: "Build Windows Branch"
+          requires:
+            - lint
+            - unit
+            - test
+            - test_windows
       - build:
           <<: *ONLY_TAGS
           name: "Build Release"
-      - choco_release:
+      - build_windows:
           <<: *ONLY_TAGS
+          name: "Build Windows Release"
           requires:
             - "Build Release"
