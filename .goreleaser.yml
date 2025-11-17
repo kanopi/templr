@@ -104,30 +104,8 @@ homebrew_casks:
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/templr"]
           end
 
-# Chocolatey package for Windows installation
-# Requires CHOCOLATEY_API_KEY environment variable
-# skip_publish is set to true so we can publish manually on Windows
-chocolateys:
-  - name: templr
-    title: templr
-    authors: Kanopi
-    project_url: https://github.com/kanopi/templr
-    url_template: "https://github.com/kanopi/templr/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    icon_url: "https://raw.githubusercontent.com/kanopi/templr/main/docs/icon.png"
-    copyright: "2025 Kanopi"
-    license_url: https://github.com/kanopi/templr/blob/main/LICENSE
-    require_license_acceptance: false
-    project_source_url: https://github.com/kanopi/templr
-    docs_url: https://github.com/kanopi/templr/blob/main/README.md
-    bug_tracker_url: https://github.com/kanopi/templr/issues
-    tags: "templating cli go templates sprig helm"
-    summary: A powerful Go template rendering CLI tool with Sprig functions
-    description: |
-      templr is a Go-based templating CLI inspired by Helm and Go's text/template package.
-      It renders templates from single files or entire directories, with support for helpers,
-      strict mode, guards, and various data input formats.
-    release_notes: "https://github.com/kanopi/templr/releases/tag/{{ .Tag }}"
-    skip_publish: true
+# Chocolatey package is created manually in CircleCI Windows job
+# See .circleci/config.yml choco_publish job for implementation
 
 # APT/DEB packages for Debian/Ubuntu
 nfpms:

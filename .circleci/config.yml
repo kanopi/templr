@@ -156,7 +156,8 @@ jobs:
             - run:
                 name: GoReleaser Release
                 command: |
-                  # Create GitHub release and build all artifacts including Chocolatey nupkg
+                  # Create GitHub release and build all artifacts
+                  # Chocolatey package is created manually in the Windows job
                   curl -sL https://git.io/goreleaser | bash -s -- release --clean
             - run:
                 name: Build Web Playground
@@ -179,16 +180,90 @@ jobs:
       - attach_workspace:
           at: .
       - run:
-          name: Publish Chocolatey Package
+          name: Create and Publish Chocolatey Package
           command: |
-            # Find and publish the .nupkg created by the Linux build
-            # The nupkg was created with skip_publish: true in .goreleaser.yml
-            $nupkg = Get-ChildItem -Path dist -Filter "*.nupkg" -Recurse | Select-Object -First 1
+            # Get version from git tag
+            $version = $env:CIRCLE_TAG
+            if ([string]::IsNullOrEmpty($version)) {
+              Write-Error "CIRCLE_TAG is not set"
+              exit 1
+            }
+
+            # Remove 'v' prefix if present
+            $version = $version.TrimStart('v')
+
+            # Get the checksum from the SHA256SUMS file in dist/
+            $sha256sums = Get-Content dist/SHA256SUMS
+            $checksumLine = $sha256sums | Where-Object { $_ -match "templr-windows-amd64.zip" }
+            $checksum = ($checksumLine -split '\s+')[0]
+
+            Write-Host "Version: $version"
+            Write-Host "Checksum: $checksum"
+
+            # Create Chocolatey package directory structure
+            New-Item -ItemType Directory -Force -Path "choco/tools"
+
+            # Create chocolateyinstall.ps1
+            $installScript = @"
+            `$ErrorActionPreference = 'Stop'
+            `$packageName = 'templr'
+            `$toolsDir = "`$(Split-Path -parent `$MyInvocation.MyCommand.Definition)"
+            `$url64 = 'https://github.com/kanopi/templr/releases/download/v$version/templr-windows-amd64.zip'
+
+            `$packageArgs = @{
+              packageName   = `$packageName
+              unzipLocation = `$toolsDir
+              url64bit      = `$url64
+              checksum64    = '$checksum'
+              checksumType64= 'sha256'
+            }
+
+            Install-ChocolateyZipPackage @packageArgs
+            "@
+
+            Set-Content -Path "choco/tools/chocolateyinstall.ps1" -Value $installScript
+
+            # Create nuspec file
+            $nuspec = @"
+            <?xml version="1.0" encoding="utf-8"?>
+            <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+              <metadata>
+                <id>templr</id>
+                <version>$version</version>
+                <title>templr</title>
+                <authors>Kanopi</authors>
+                <projectUrl>https://github.com/kanopi/templr</projectUrl>
+                <iconUrl>https://raw.githubusercontent.com/kanopi/templr/main/docs/icon.png</iconUrl>
+                <copyright>2025 Kanopi</copyright>
+                <licenseUrl>https://github.com/kanopi/templr/blob/main/LICENSE</licenseUrl>
+                <requireLicenseAcceptance>false</requireLicenseAcceptance>
+                <projectSourceUrl>https://github.com/kanopi/templr</projectSourceUrl>
+                <docsUrl>https://github.com/kanopi/templr/blob/main/README.md</docsUrl>
+                <bugTrackerUrl>https://github.com/kanopi/templr/issues</bugTrackerUrl>
+                <tags>templating cli go templates sprig helm</tags>
+                <summary>A powerful Go template rendering CLI tool with Sprig functions</summary>
+                <description>templr is a Go-based templating CLI inspired by Helm and Go's text/template package. It renders templates from single files or entire directories, with support for helpers, strict mode, guards, and various data input formats.</description>
+                <releaseNotes>https://github.com/kanopi/templr/releases/tag/v$version</releaseNotes>
+              </metadata>
+              <files>
+                <file src="tools\**" target="tools" />
+              </files>
+            </package>
+            "@
+
+            Set-Content -Path "choco/templr.nuspec" -Value $nuspec
+
+            # Pack the Chocolatey package
+            cd choco
+            choco pack
+
+            # Publish to Chocolatey
+            $nupkg = Get-ChildItem -Filter "*.nupkg" | Select-Object -First 1
             if ($nupkg) {
               Write-Host "Publishing $($nupkg.FullName) to Chocolatey"
               choco push $nupkg.FullName --source=https://push.chocolatey.org/ --api-key=$env:CHOCOLATEY_API_KEY
             } else {
-              Write-Error "No .nupkg file found in dist/"
+              Write-Error "No .nupkg file found"
               exit 1
             }
 
