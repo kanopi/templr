@@ -209,7 +209,7 @@ jobs:
             `$ErrorActionPreference = 'Stop'
             `$packageName = 'templr'
             `$toolsDir = "`$(Split-Path -parent `$MyInvocation.MyCommand.Definition)"
-            `$url64 = 'https://github.com/kanopi/templr/releases/download/v$version/templr-windows-amd64.zip'
+            `$url64 = 'https://github.com/kanopi/templr/releases/download/$version/templr-windows-amd64.zip'
 
             `$packageArgs = @{
               packageName   = `$packageName
@@ -244,7 +244,7 @@ jobs:
                 <tags>templating cli go templates sprig helm</tags>
                 <summary>A powerful Go template rendering CLI tool with Sprig functions</summary>
                 <description>templr is a Go-based templating CLI inspired by Helm and Go's text/template package. It renders templates from single files or entire directories, with support for helpers, strict mode, guards, and various data input formats.</description>
-                <releaseNotes>https://github.com/kanopi/templr/releases/tag/v$version</releaseNotes>
+                <releaseNotes>https://github.com/kanopi/templr/releases/tag/$version</releaseNotes>
               </metadata>
               <files>
                 <file src="tools\**" target="tools" />
