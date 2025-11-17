@@ -294,7 +294,9 @@ func buildFuncMap(tpl **template.Template) template.FuncMap {
 	}
 
 	funcs["pathNormalize"] = func(path string) string {
-		return filepath.Clean(path)
+		// Clean the path and convert to forward slashes for cross-platform consistency
+		cleaned := filepath.Clean(path)
+		return filepath.ToSlash(cleaned)
 	}
 
 	funcs["mimeType"] = func(path string) string {
