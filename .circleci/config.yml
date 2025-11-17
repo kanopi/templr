@@ -170,50 +170,24 @@ jobs:
                 paths:
                   - dist
 
-  build_windows:
+  choco_publish:
     machine:
       image: windows-server-2019-vs2019:stable
     resource_class: windows.medium
     steps:
       - checkout
-      - run:
-          name: Install Go
-          command: |
-            choco install -y golang
+      - attach_workspace:
+          at: .
       - run:
           name: Install GoReleaser
           command: |
             choco install -y goreleaser
       - run:
-          name: Install Chocolatey (already present, but safe)
+          name: Publish Chocolatey Package
           command: |
-            choco --version
-      - when:
-          condition:
-            equal: ["", << pipeline.git.tag >>]
-          steps:
-            - run:
-                name: Build Snapshot (Branch Build)
-                command: |
-                  goreleaser build --snapshot --clean --id templr
-            - store_artifacts:
-                path: dist
-                destination: templr-windows-artifacts
-      - unless:
-          condition:
-            equal: ["", << pipeline.git.tag >>]
-          steps:
-            - attach_workspace:
-                at: .
-            - run:
-                name: GoReleaser Chocolatey Release
-                command: |
-                  # Re-run goreleaser on Windows so the chocolatey pipe can run.
-                  # We can skip docker/nfpm/etc since Linux already did those:
-                  goreleaser release --clean --skip=docker,nfpm,sbom,homebrew
-            - store_artifacts:
-                path: dist
-                destination: templr-windows-artifacts
+            # Use existing dist artifacts from Linux build
+            # Only run chocolatey publisher, skip all builds
+            goreleaser release --skip=build,docker,nfpm,sbom,homebrew,announce,validate
 
 workflows:
   version: 2
@@ -235,19 +209,11 @@ workflows:
             - unit
             - test
             - test_windows
-      - build_windows:
-          <<: *ONLY_BRANCHES
-          name: "Build Windows Branch"
-          requires:
-            - lint
-            - unit
-            - test
-            - test_windows
       - build:
           <<: *ONLY_TAGS
           name: "Build Release"
-      - build_windows:
+      - choco_publish:
           <<: *ONLY_TAGS
-          name: "Build Windows Release"
+          name: "Choco Release"
           requires:
             - "Build Release"
