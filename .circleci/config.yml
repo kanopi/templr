@@ -181,6 +181,7 @@ jobs:
           at: .
       - run:
           name: Create and Publish Chocolatey Package
+          shell: powershell.exe
           command: |
             # Get version from git tag
             $version = $env:CIRCLE_TAG
