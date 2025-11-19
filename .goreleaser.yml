@@ -25,10 +25,11 @@ builds:
     env: [CGO_ENABLED=0]
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
-    flags: [-trimpath,-buildmode=pie]
+    flags: [-trimpath]
     ldflags:
       - >-
         -s -w
+        -extldflags=-static
         -X main.Version={{ .Version }}
         -X main.Commit={{ .Commit }}
         -X main.Date={{ .Date }}
@@ -102,6 +103,69 @@ homebrew_casks:
           if OS.mac?
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/templr"]
           end
+
+# Chocolatey package is created manually in CircleCI Windows job
+# See .circleci/config.yml choco_publish job for implementation
+
+# APT/DEB packages for Debian/Ubuntu
+nfpms:
+  - id: templr-deb
+    package_name: templr
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: Kanopi
+    homepage: https://github.com/kanopi/templr
+    maintainer: Kanopi <info@kanopi.com>
+    description: "A powerful Go template rendering CLI tool with Sprig functions"
+    license: MIT
+    formats:
+      - deb
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/templr/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/templr/README.md
+
+  - id: templr-rpm
+    package_name: templr
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: Kanopi
+    homepage: https://github.com/kanopi/templr
+    maintainer: Kanopi <info@kanopi.com>
+    description: "A powerful Go template rendering CLI tool with Sprig functions"
+    license: MIT
+    formats:
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/templr/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/templr/README.md
+
+  - id: templr-apk
+    package_name: templr
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: Kanopi
+    homepage: https://github.com/kanopi/templr
+    maintainer: Kanopi <info@kanopi.com>
+    description: "A powerful Go template rendering CLI tool with Sprig functions"
+    license: MIT
+    formats:
+      - apk
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/templr/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/templr/README.md
+
+# Publishers for package repositories
+publishers:
+  # Publish Linux packages to Gemfury
+  - name: fury.io
+    ids: [templr-deb, templr-rpm, templr-apk]
+    cmd: curl -F package=@{{ .ArtifactPath }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/{{ .Env.FURY_ACCOUNT }}/
 
 dockers_v2:
   - id: templr

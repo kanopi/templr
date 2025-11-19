@@ -46,7 +46,7 @@ define BUILD_OS_ARCH_RULE
 .PHONY: build-$(1)-$(2) build_$(1)_$(2)
 build-$(1)-$(2) build_$(1)_$(2):
 	@mkdir -p .bin
-	GOOS=$(1) GOARCH=$(2) go build -ldflags "-X main.Version=$(VERSION)" -o .bin/templr-$(1)-$(2)
+	CGO_ENABLED=0 GOOS=$(1) GOARCH=$(2) go build -trimpath -ldflags "-s -w -extldflags=-static -X main.Version=$(VERSION)" -o .bin/templr-$(1)-$(2)
 endef
 
 # Rule generator for aggregate per-OS target (depends on valid arches only)

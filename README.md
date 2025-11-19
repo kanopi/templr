@@ -36,11 +36,11 @@ brew install templr
 # Or via curl
 curl -fsSL https://raw.githubusercontent.com/kanopi/templr/main/get-templr.sh | bash
 
-# Or via Docker
+# Or via Docker (Alpine-based, only 18MB!)
 docker pull kanopi/templr
 ```
 
-**[Complete Installation Guide →](docs/installation.md)**
+**[Complete Installation Guide →](docs/installation.md)** | **[Docker Guide →](DOCKER.md)**
 
 ### Basic Usage
 

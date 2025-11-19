@@ -86,6 +86,29 @@ jobs:
       - store_test_results:
           path: .out
 
+  test_windows:
+    machine:
+      image: windows-server-2019-vs2019:stable
+    resource_class: windows.medium
+    steps:
+      - checkout
+      - run:
+          name: Install Go
+          command: |
+            choco install -y golang
+      - run:
+          name: Install dependencies
+          command: |
+            go mod tidy
+      - run:
+          name: Build project
+          command: |
+            go build -o .bin/templr.exe .
+      - run:
+          name: Run Go tests
+          command: |
+            go test ./...
+
   build:
     executor: go-executor
     steps:
@@ -97,8 +120,11 @@ jobs:
       - run:
           name: Install GoReleaser / Syft
           command: |
+            # Install GoReleaser
             curl -sfL https://goreleaser.com/static/run | bash -s -- check
             curl -sL https://git.io/goreleaser | bash -s -- --version
+
+            # Install Syft
             curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
       - setup_remote_docker:
           version: 20.10.24
@@ -131,6 +157,7 @@ jobs:
                 name: GoReleaser Release
                 command: |
                   # Create GitHub release and build all artifacts
+                  # Chocolatey package is created manually in the Windows job
                   curl -sL https://git.io/goreleaser | bash -s -- release --clean
             - run:
                 name: Build Web Playground
@@ -139,6 +166,107 @@ jobs:
             - store_artifacts:
                 path: dist
                 destination: templr-artifacts
+            - persist_to_workspace:
+                root: .
+                paths:
+                  - dist
+
+  choco_publish:
+    machine:
+      image: windows-server-2019-vs2019:stable
+    resource_class: windows.medium
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Create and Publish Chocolatey Package
+          shell: powershell.exe
+          command: |
+            # Get version from git tag
+            $version = $env:CIRCLE_TAG
+            if ([string]::IsNullOrEmpty($version)) {
+              Write-Error "CIRCLE_TAG is not set"
+              exit 1
+            }
+
+            # Remove 'v' prefix if present
+            $version = $version.TrimStart('v')
+
+            # Get the checksum from the SHA256SUMS file in dist/
+            $sha256sums = Get-Content dist/SHA256SUMS
+            $checksumLine = $sha256sums | Where-Object { $_ -match "templr-windows-amd64.zip" }
+            $checksum = ($checksumLine -split '\s+')[0]
+
+            Write-Host "Version: $version"
+            Write-Host "Checksum: $checksum"
+
+            # Create Chocolatey package directory structure
+            New-Item -ItemType Directory -Force -Path "choco/tools"
+
+            # Create chocolateyinstall.ps1
+            $installScript = @"
+            `$ErrorActionPreference = 'Stop'
+            `$packageName = 'templr'
+            `$toolsDir = "`$(Split-Path -parent `$MyInvocation.MyCommand.Definition)"
+            `$url64 = 'https://github.com/kanopi/templr/releases/download/$version/templr-windows-amd64.zip'
+
+            `$packageArgs = @{
+              packageName   = `$packageName
+              unzipLocation = `$toolsDir
+              url64bit      = `$url64
+              checksum64    = '$checksum'
+              checksumType64= 'sha256'
+            }
+
+            Install-ChocolateyZipPackage @packageArgs
+            "@
+
+            Set-Content -Path "choco/tools/chocolateyinstall.ps1" -Value $installScript
+
+            # Create nuspec file
+            $nuspec = @"
+            <?xml version="1.0" encoding="utf-8"?>
+            <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+              <metadata>
+                <id>templr</id>
+                <version>$version</version>
+                <title>templr</title>
+                <authors>Kanopi</authors>
+                <projectUrl>https://github.com/kanopi/templr</projectUrl>
+                <iconUrl>https://raw.githubusercontent.com/kanopi/templr/main/docs/icon.png</iconUrl>
+                <copyright>2025 Kanopi</copyright>
+                <licenseUrl>https://github.com/kanopi/templr/blob/main/LICENSE</licenseUrl>
+                <requireLicenseAcceptance>false</requireLicenseAcceptance>
+                <projectSourceUrl>https://github.com/kanopi/templr</projectSourceUrl>
+                <docsUrl>https://github.com/kanopi/templr/blob/main/README.md</docsUrl>
+                <bugTrackerUrl>https://github.com/kanopi/templr/issues</bugTrackerUrl>
+                <tags>templating cli go templates sprig helm</tags>
+                <summary>A powerful Go template rendering CLI tool with Sprig functions</summary>
+                <description>templr is a Go-based templating CLI inspired by Helm and Go's text/template package. It renders templates from single files or entire directories, with support for helpers, strict mode, guards, and various data input formats.</description>
+                <releaseNotes>https://github.com/kanopi/templr/releases/tag/$version</releaseNotes>
+              </metadata>
+              <files>
+                <file src="tools\**" target="tools" />
+              </files>
+            </package>
+            "@
+
+            Set-Content -Path "choco/templr.nuspec" -Value $nuspec
+
+            # Pack the Chocolatey package
+            cd choco
+            choco pack
+
+            # Publish to Chocolatey
+            $nupkg = Get-ChildItem -Filter "*.nupkg" | Select-Object -First 1
+            if ($nupkg) {
+              Write-Host "Publishing $($nupkg.FullName) to Chocolatey"
+              choco push $nupkg.FullName --source=https://push.chocolatey.org/ --api-key=$env:CHOCOLATEY_API_KEY
+            } else {
+              Write-Error "No .nupkg file found"
+              exit 1
+            }
 
 workflows:
   version: 2
@@ -150,6 +278,8 @@ workflows:
           <<: *ONLY_BRANCHES
       - test:
           <<: *ONLY_BRANCHES
+      - test_windows:
+          <<: *ONLY_BRANCHES
       - build:
           <<: *ONLY_BRANCHES
           name: "Build Branch"
@@ -157,6 +287,12 @@ workflows:
             - lint
             - unit
             - test
+            - test_windows
       - build:
           <<: *ONLY_TAGS
           name: "Build Release"
+      - choco_publish:
+          <<: *ONLY_TAGS
+          name: "Choco Release"
+          requires:
+            - "Build Release"

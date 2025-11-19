@@ -36,15 +36,15 @@ func buildTemplr(t *testing.T, startDir string) string {
 	defer cancel()
 
 	bin := filepath.Join(root, "templr-testbin")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
 	cmd := exec.CommandContext(ctx, "go", "build", "-o", bin, ".")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("build failed in %s: %v\n%s", root, err, string(out))
-	}
-	if runtime.GOOS == "windows" {
-		return bin + ".exe"
 	}
 	return bin
 }
