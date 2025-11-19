@@ -4,46 +4,255 @@
   <meta charset="utf-8"/>
   <title>templr playground</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/one-dark.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header>
-    <h1>templr playground</h1>
-    <p>Test templates, values, helpers, <code>--default-missing</code>, strict mode, and <code>.Files</code> uploads — all in your browser.</p>
+    <div class="header-content">
+      <div class="header-left">
+        <h1>templr playground</h1>
+      </div>
+      <div class="header-right">
+        <div class="theme-selector">
+          <label for="themeSelect" class="theme-label">Theme:</label>
+          <select id="themeSelect" class="theme-dropdown">
+            <option value="light">☀️ Light</option>
+            <option value="dark">🌙 Dark</option>
+          </select>
+        </div>
+        <button id="showTour" class="btn btn-secondary" title="Show welcome tour">
+          <span class="icon">❓</span> Help
+        </button>
+        <button id="uploadZip" class="btn btn-secondary" title="Upload template project">
+          <span class="icon">📁</span> Upload Project
+        </button>
+        <button id="downloadTemplates" class="btn btn-secondary" title="Download templates as zip">
+          <span class="icon">⬇️</span> Download Templates
+        </button>
+        <button id="downloadOutput" class="btn btn-secondary" title="Download rendered files">
+          <span class="icon">💾</span> Download Output
+        </button>
+        <button id="render" class="btn btn-primary" title="Render all templates">
+          <span class="icon">▶️</span> Render
+        </button>
+      </div>
+    </div>
+    <div class="options-bar">
+      <label class="checkbox-label">
+        <input type="checkbox" id="strict"> Strict mode
+        <span class="tooltip-icon" title="Enable strict mode: fail rendering if variables are missing or undefined">?</span>
+      </label>
+      <label class="input-label">
+        Default missing:
+        <input type="text" id="defaultMissing" value="&lt;no value&gt;" />
+        <span class="tooltip-icon" title="Default value to use when a variable is missing (only used when strict mode is disabled). Examples: '&lt;no value&gt;', 'N/A', ''">?</span>
+      </label>
+      <label class="input-label">
+        Extensions:
+        <input type="text" id="extensions" value="tpl" placeholder="tpl,yaml,txt" />
+        <span class="tooltip-icon" title="File extensions to process as templates (comma-separated). Examples: tpl,yaml,md,txt">?</span>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="injectGuard" checked> Inject guard
+        <span class="tooltip-icon" title="Automatically inject a guard comment at the top of rendered files to mark them as generated">?</span>
+      </label>
+      <label class="input-label">
+        Guard:
+        <input type="text" id="guardMarker" value="#templr generated" />
+        <span class="tooltip-icon" title="Guard marker text to inject in rendered files (helps prevent accidental manual edits). Examples: '#templr generated', '# AUTO-GENERATED'">?</span>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="debug"> Debug mode
+        <span class="tooltip-icon" title="Enable debug logging: shows detailed information about template processing in the logs">?</span>
+      </label>
+    </div>
   </header>
 
-  <main>
-    <section class="pane">
-      <label>Template</label>
-      <textarea id="template" placeholder='Hello {{ .name | default "world" }}'></textarea>
+  <main class="main-container">
+    <!-- Left Sidebar (1/3 width) -->
+    <aside class="sidebar" id="sidebar">
+      <!-- Template Files Explorer -->
+      <section class="explorer-section">
+        <div class="explorer-header">
+          <h3>Templates
+            <span class="tooltip-icon" title="Your template source files (editable). These files use Go template syntax and are processed with values from values.yaml to generate output.">?</span>
+          </h3>
+          <div class="explorer-actions">
+            <button id="newFile" class="icon-btn" title="New file">📄</button>
+            <button id="newFolder" class="icon-btn" title="New directory">📁</button>
+            <button id="uploadFile" class="icon-btn" title="Upload file">⬆️</button>
+            <button id="renameItem" class="icon-btn" title="Rename (F2)">✏️</button>
+            <button id="deleteItem" class="icon-btn" title="Delete">🗑️</button>
+          </div>
+        </div>
+        <div id="templateExplorer" class="file-tree"></div>
+      </section>
 
-      <label>Values (YAML or JSON)</label>
-      <textarea id="values" placeholder="name: templr"></textarea>
+      <!-- Output Files Explorer -->
+      <section class="explorer-section">
+        <div class="explorer-header">
+          <h3>Rendered Output
+            <span class="tooltip-icon" title="Generated files after rendering (read-only). These are the result of processing your templates with the values. Click any file to view its contents.">?</span>
+          </h3>
+        </div>
+        <div id="outputExplorer" class="file-tree"></div>
+      </section>
+    </aside>
 
-      <label>Helpers (_helpers*.tpl)</label>
-      <textarea id="helpers" placeholder='{{ define "shout" }}{{ upper . }}{{ end }}'></textarea>
+    <!-- Resize Handle -->
+    <div class="resize-handle" id="resizeHandle"></div>
 
-      <div class="row">
-        <label><input type="checkbox" id="strict"> Strict mode</label>
-        <label>Default missing <input id="dm" value="&lt;no value&gt;" /></label>
-        <label><input type="checkbox" id="injectGuard"> Inject guard</label>
-        <label>Guard marker <input id="guardMarker" value="#templr generated" /></label>
+    <!-- Main Viewer (2/3 width) -->
+    <section class="viewer">
+      <div class="tabs-container">
+        <div id="tabs" class="tabs"></div>
       </div>
-
-      <label>.Files bundle (.zip) — optional</label>
-      <input type="file" id="zip" accept=".zip" />
-    </section>
-
-    <section class="pane">
-      <div class="row">
-        <button id="render">Render</button>
-        <button id="sample">Load sample</button>
+      <div class="editor-container">
+        <div id="editorPlaceholder" class="editor-placeholder">
+          <div class="placeholder-content">
+            <h2>Welcome to templr playground</h2>
+            <p>An interactive web interface for testing Go templates</p>
+            <p>Select a file from the Templates explorer or load a sample to get started</p>
+            <button id="loadSample" class="btn btn-primary">Load Sample Project</button>
+          </div>
+        </div>
+        <textarea id="editor"></textarea>
       </div>
-      <label>Output</label>
-      <textarea id="output" readonly></textarea>
     </section>
   </main>
 
+  <!-- Collapsible Log Section (Footer) -->
+  <footer class="log-section" id="logSection">
+    <div class="log-header" id="logHeader">
+      <span class="log-title">
+        <span id="logCollapseIcon">▲</span> Logs
+        <span id="logCount" class="log-count">(0)</span>
+      </span>
+      <div class="log-filters">
+        <label class="log-filter"><input type="checkbox" id="showInfo" checked> Info</label>
+        <label class="log-filter"><input type="checkbox" id="showWarnings" checked> Warnings</label>
+        <label class="log-filter"><input type="checkbox" id="showErrors" checked> Errors</label>
+        <label class="log-filter"><input type="checkbox" id="showDebug" checked> Debug</label>
+        <button id="clearLogs" class="btn btn-secondary" style="margin-left: 12px;">Clear Logs</button>
+      </div>
+    </div>
+    <div class="log-content" id="logContent">
+      <div class="log-empty">No logs yet. Render templates to see output.</div>
+    </div>
+  </footer>
+
+  <!-- Hidden file inputs for upload -->
+  <input type="file" id="fileUpload" accept=".zip" style="display: none;" />
+  <input type="file" id="singleFileUpload" multiple style="display: none;" />
+
+  <!-- Welcome Tour Modal -->
+  <div id="welcomeModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Welcome to templr playground! 🚀</h2>
+        <button id="closeModal" class="modal-close" title="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Tour Step 1 -->
+        <div class="tour-step active" data-step="1">
+          <div class="tour-icon">📝</div>
+          <h3>What is templr?</h3>
+          <p>templr is a powerful Go template rendering tool inspired by Helm. This playground lets you test and experiment with templates in your browser.</p>
+          <ul class="tour-features">
+            <li>✓ Go template syntax with 60+ Sprig functions</li>
+            <li>✓ Helper templates with <code>include</code> function</li>
+            <li>✓ Live rendering and instant feedback</li>
+            <li>✓ Support for multiple file extensions</li>
+          </ul>
+        </div>
+
+        <!-- Tour Step 2 -->
+        <div class="tour-step" data-step="2">
+          <div class="tour-icon">📁</div>
+          <h3>File Management</h3>
+          <p>The left sidebar is your file explorer:</p>
+          <ul class="tour-features">
+            <li><strong>Templates</strong> - Your template files (editable)</li>
+            <li><strong>Rendered Output</strong> - Generated files (read-only)</li>
+          </ul>
+          <p>Use the toolbar buttons to:</p>
+          <div class="tour-actions">
+            <span class="tour-btn">📄 New File</span>
+            <span class="tour-btn">📁 New Folder</span>
+            <span class="tour-btn">⬆️ Upload</span>
+            <span class="tour-btn">✏️ Rename (F2)</span>
+            <span class="tour-btn">🗑️ Delete</span>
+          </div>
+          <p class="tour-tip">💡 <strong>Tip:</strong> Drag and drop files to move them between folders!</p>
+        </div>
+
+        <!-- Tour Step 3 -->
+        <div class="tour-step" data-step="3">
+          <div class="tour-icon">⚙️</div>
+          <h3>How Templates Work</h3>
+          <p>Templates use values from <code>values.yaml</code> to generate output:</p>
+          <div class="tour-example">
+            <div class="tour-example-box">
+              <strong>values.yaml</strong>
+              <pre>name: "World"
+version: "1.0"</pre>
+            </div>
+            <div class="tour-arrow">→</div>
+            <div class="tour-example-box">
+              <strong>template.tpl</strong>
+              <pre>Hello {{ "{{" }} .name {{ "}}" }}!
+Version: {{ "{{" }} .version {{ "}}" }}</pre>
+            </div>
+            <div class="tour-arrow">→</div>
+            <div class="tour-example-box">
+              <strong>Output</strong>
+              <pre>Hello World!
+Version: 1.0</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tour Step 4 -->
+        <div class="tour-step" data-step="4">
+          <div class="tour-icon">▶️</div>
+          <h3>Quick Start Guide</h3>
+          <ol class="tour-steps-list">
+            <li><strong>Load Sample Project</strong> - Click the button below to load an example</li>
+            <li><strong>Explore Files</strong> - Check out <code>values.yaml</code>, <code>_helpers.tpl</code>, and <code>README.md.tpl</code></li>
+            <li><strong>Set Extensions</strong> - In the header, set Extensions to <code>md</code> or <code>tpl</code></li>
+            <li><strong>Click Render</strong> - Press the green Render button to process templates</li>
+            <li><strong>View Output</strong> - See the rendered files in the "Rendered Output" section</li>
+          </ol>
+          <p class="tour-tip">💡 <strong>Tip:</strong> Enable Debug mode in the header to see detailed logging!</p>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="tour-progress">
+          <span class="tour-dot active" data-step="1"></span>
+          <span class="tour-dot" data-step="2"></span>
+          <span class="tour-dot" data-step="3"></span>
+          <span class="tour-dot" data-step="4"></span>
+        </div>
+        <div class="tour-navigation">
+          <button id="tourPrev" class="btn btn-secondary" disabled>Previous</button>
+          <button id="tourNext" class="btn btn-primary">Next</button>
+          <button id="tourFinish" class="btn btn-primary" style="display: none;">Get Started</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+  <script src="https://unpkg.com/@popperjs/core@2"></script>
+  <script src="https://unpkg.com/tippy.js@6"></script>
   <script src="wasm_exec.js"></script>
   <script src="app.js"></script>
 </body>
