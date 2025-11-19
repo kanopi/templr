@@ -68,6 +68,75 @@ Download the latest release for your platform:
    Move-Item templr.exe C:\Windows\System32\
    ```
 
+### Linux Package Managers
+
+#### Debian/Ubuntu (APT)
+
+**Option 1: Install from repository (recommended after v1.6.0+)**
+
+```bash
+# Add Gemfury repository
+echo "deb [trusted=yes] https://apt.fury.io/kanopicode/ * *" | sudo tee /etc/apt/sources.list.d/kanopicode.list > /dev/null
+
+# Install
+sudo apt update
+sudo apt install templr
+```
+
+**Option 2: Download and install .deb package**
+
+```bash
+# Replace VERSION, OS, and ARCH with your values
+wget https://github.com/kanopi/templr/releases/download/{{VERSION}}/templr_{{VERSION}}_{{OS}}_{{ARCH}}.deb
+sudo dpkg -i templr_{{VERSION}}_{{OS}}_{{ARCH}}.deb
+```
+
+#### RHEL/Fedora/CentOS (RPM)
+
+**Option 1: Install from repository (recommended after v1.4.0+)**
+
+```bash
+# Add Gemfury repository
+sudo tee /etc/yum.repos.d/fury.repo <<EOF
+[fury]
+name=Gemfury Repository
+baseurl=https://yum.fury.io/kanopicode/
+enabled=1
+gpgcheck=0
+EOF
+
+# Install
+sudo yum install templr
+```
+
+**Option 2: Download and install .rpm package**
+
+```bash
+# Replace VERSION, OS, and ARCH with your values
+wget https://github.com/kanopi/templr/releases/download/{{VERSION}}/templr_{{VERSION}}_{{OS}}_{{ARCH}}.rpm
+sudo rpm -i templr_{{VERSION}}_{{OS}}_{{ARCH}}.rpm
+```
+
+#### Alpine Linux (APK)
+
+**Option 1: Install from repository (recommended after v1.6.0+)**
+
+```bash
+# Add Gemfury repository
+echo "https://apk.fury.io/kanopicode/" | sudo tee -a /etc/apk/repositories
+
+# Install
+sudo apk add templr
+```
+
+**Option 2: Download and install .apk package**
+
+```bash
+# Replace VERSION, OS, and ARCH with your values
+wget https://github.com/kanopi/templr/releases/download/{{VERSION}}/templr_{{VERSION}}_{{OS}}_{{ARCH}}.apk
+sudo apk add --allow-untrusted templr_{{VERSION}}_{{OS}}_{{ARCH}}.apk
+```
+
 ### Using Docker
 
 Run templr without installing it locally using the official Docker image:
@@ -75,7 +144,7 @@ Run templr without installing it locally using the official Docker image:
 #### Walk Mode (Render Directory Tree)
 
 ```bash
-docker run --rm -v $(pwd):/work -w /work kanopi/templr walk --src /work/templates --dst /work/out
+docker run --rm -v $(pwd):/work -w /work kanopi/templr:{{VERSION}} walk --src /work/templates --dst /work/out
 ```
 
 #### Single File Rendering
