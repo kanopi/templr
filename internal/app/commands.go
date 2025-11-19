@@ -69,10 +69,7 @@ type SchemaOptions struct {
 // The returned function map includes a closure reference to tpl for the include function.
 // This is now a thin wrapper around pkg/templr.BuildFuncMap for backwards compatibility.
 func buildFuncMap(tpl **template.Template) template.FuncMap {
-	if tpl == nil || *tpl == nil {
-		return templr.BuildFuncMap(nil)
-	}
-	return templr.BuildFuncMap(*tpl)
+	return templr.BuildFuncMap(tpl)
 }
 
 // All template functions have been moved to pkg/templr.BuildFuncMap for code sharing

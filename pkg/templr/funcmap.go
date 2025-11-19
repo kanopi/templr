@@ -33,9 +33,11 @@ import (
 
 // BuildFuncMap creates the template function map with Sprig and custom functions.
 // The returned function map includes a closure reference to tpl for the include function.
+// The tpl parameter is a pointer-to-pointer so that the include function can access
+// the template even when it's initialized after the func map is created.
 //
 //nolint:gocyclo // Function map builders naturally have high complexity
-func BuildFuncMap(tpl *template.Template) template.FuncMap {
+func BuildFuncMap(tpl **template.Template) template.FuncMap {
 	funcs := sprig.TxtFuncMap()
 
 	// Ensure YAML helpers exist (some environments/vendors strip these from Sprig)
@@ -79,10 +81,10 @@ func BuildFuncMap(tpl *template.Template) template.FuncMap {
 	// Helm-like helpers
 	funcs["include"] = func(name string, data any) (string, error) {
 		var b bytes.Buffer
-		if tpl == nil {
+		if tpl == nil || *tpl == nil {
 			return "", fmt.Errorf("template not initialized")
 		}
-		if err := tpl.ExecuteTemplate(&b, name, data); err != nil {
+		if err := (*tpl).ExecuteTemplate(&b, name, data); err != nil {
 			return "", err
 		}
 		return b.String(), nil

@@ -53,7 +53,7 @@ type Options struct {
 type Result struct{ Output string }
 
 // defaultFuncMap is deprecated. Use BuildFuncMap instead.
-func defaultFuncMap(tpl *template.Template) template.FuncMap {
+func defaultFuncMap(tpl **template.Template) template.FuncMap {
 	return BuildFuncMap(tpl)
 }
 
@@ -116,7 +116,7 @@ func RenderSingle(opts Options) (Result, error) {
 	}
 
 	// Build funcmap with reference to root template for include function
-	funcs := defaultFuncMap(root)
+	funcs := defaultFuncMap(&root)
 	for k, v := range opts.FuncMap {
 		funcs[k] = v
 	}
