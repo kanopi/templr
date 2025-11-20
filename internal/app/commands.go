@@ -72,6 +72,17 @@ func buildFuncMap(tpl **template.Template) template.FuncMap {
 	return templr.BuildFuncMap(tpl)
 }
 
+// buildFuncMapWithOptions creates the template function map with custom options
+func buildFuncMapWithOptions(tpl **template.Template, strict bool, defaultMissing string) template.FuncMap {
+	return templr.BuildFuncMapWithOptions(tpl, &templr.FuncMapOptions{
+		Strict:         strict,
+		DefaultMissing: defaultMissing,
+		WarnFunc: func(msg string) {
+			warnf("include", "%s", msg) // Output warnings for missing templates
+		},
+	})
+}
+
 // All template functions have been moved to pkg/templr.BuildFuncMap for code sharing
 // between the CLI and web playground.
 
@@ -170,7 +181,7 @@ func RunWalkMode(opts WalkOptions) error {
 
 	// Create template with functions
 	var tpl *template.Template
-	funcs := buildFuncMap(&tpl)
+	funcs := buildFuncMapWithOptions(&tpl, opts.Shared.Strict, opts.Shared.DefaultMissing)
 	tpl = template.New("root").Funcs(funcs).Option("missingkey=default")
 	if opts.Shared.Strict {
 		tpl = tpl.Option("missingkey=error")
@@ -292,7 +303,7 @@ func RunDirMode(opts DirOptions) error {
 
 	// Create template with functions
 	var tpl *template.Template
-	funcs := buildFuncMap(&tpl)
+	funcs := buildFuncMapWithOptions(&tpl, opts.Shared.Strict, opts.Shared.DefaultMissing)
 	tpl = template.New("root").Funcs(funcs).Option("missingkey=default")
 	if opts.Shared.Strict {
 		tpl = tpl.Option("missingkey=error")
@@ -459,7 +470,7 @@ func RunRenderMode(opts RenderOptions) error {
 		debugf(opts.Shared.Debug, "Strict mode enabled (missingkey=error)")
 	}
 	var tpl *template.Template
-	funcs := buildFuncMap(&tpl)
+	funcs := buildFuncMapWithOptions(&tpl, opts.Shared.Strict, opts.Shared.DefaultMissing)
 	tpl = template.New("root").Funcs(funcs).Option("missingkey=default")
 	if opts.Shared.Strict {
 		tpl = tpl.Option("missingkey=error")

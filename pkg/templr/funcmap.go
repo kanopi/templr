@@ -31,6 +31,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// FuncMapOptions configures the behavior of template functions
+type FuncMapOptions struct {
+	Strict         bool
+	DefaultMissing string
+	WarnFunc       func(string) // Function to call for warnings (e.g., missing templates)
+}
+
 // BuildFuncMap creates the template function map with Sprig and custom functions.
 // The returned function map includes a closure reference to tpl for the include function.
 // The tpl parameter is a pointer-to-pointer so that the include function can access
@@ -38,6 +45,21 @@ import (
 //
 //nolint:gocyclo // Function map builders naturally have high complexity
 func BuildFuncMap(tpl **template.Template) template.FuncMap {
+	return BuildFuncMapWithOptions(tpl, nil)
+}
+
+// BuildFuncMapWithOptions creates the template function map with custom options
+//
+//nolint:gocyclo // Function map builders naturally have high complexity
+func BuildFuncMapWithOptions(tpl **template.Template, opts *FuncMapOptions) template.FuncMap {
+	if opts == nil {
+		opts = &FuncMapOptions{
+			Strict:         false,
+			DefaultMissing: "<no value>",
+			WarnFunc:       nil,
+		}
+	}
+
 	funcs := sprig.TxtFuncMap()
 
 	// Ensure YAML helpers exist (some environments/vendors strip these from Sprig)
@@ -82,9 +104,30 @@ func BuildFuncMap(tpl **template.Template) template.FuncMap {
 	funcs["include"] = func(name string, data any) (string, error) {
 		var b bytes.Buffer
 		if tpl == nil || *tpl == nil {
-			return "", fmt.Errorf("template not initialized")
+			if opts.Strict {
+				return "", fmt.Errorf("template not initialized")
+			}
+			if opts.WarnFunc != nil {
+				opts.WarnFunc(fmt.Sprintf("include: template not initialized for %q", name))
+			}
+			return opts.DefaultMissing, nil
 		}
+
+		// Check if template exists
+		tmpl := (*tpl).Lookup(name)
+		if tmpl == nil {
+			// Template doesn't exist
+			if opts.Strict {
+				return "", fmt.Errorf("template %q not found", name)
+			}
+			if opts.WarnFunc != nil {
+				opts.WarnFunc(fmt.Sprintf("include: template %q not found", name))
+			}
+			return opts.DefaultMissing, nil
+		}
+
 		if err := (*tpl).ExecuteTemplate(&b, name, data); err != nil {
+			// Execution error - always fail (even in non-strict mode)
 			return "", err
 		}
 		return b.String(), nil

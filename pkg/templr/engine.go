@@ -43,6 +43,7 @@ type Options struct {
 	DefaultMissing string
 	Files          FilesAPI
 	FuncMap        template.FuncMap
+	WarnFunc       func(string) // Function to call for warnings
 
 	InjectGuard bool
 	GuardMarker string
@@ -55,6 +56,15 @@ type Result struct{ Output string }
 // defaultFuncMap is deprecated. Use BuildFuncMap instead.
 func defaultFuncMap(tpl **template.Template) template.FuncMap {
 	return BuildFuncMap(tpl)
+}
+
+// defaultFuncMapWithOptions creates function map with options (for RenderSingle)
+func defaultFuncMapWithOptions(tpl **template.Template, strict bool, defaultMissing string, warnFunc func(string)) template.FuncMap {
+	return BuildFuncMapWithOptions(tpl, &FuncMapOptions{
+		Strict:         strict,
+		DefaultMissing: defaultMissing,
+		WarnFunc:       warnFunc,
+	})
 }
 
 func loadValues(o Options) (map[string]any, error) {
@@ -116,7 +126,7 @@ func RenderSingle(opts Options) (Result, error) {
 	}
 
 	// Build funcmap with reference to root template for include function
-	funcs := defaultFuncMap(&root)
+	funcs := defaultFuncMapWithOptions(&root, opts.Strict, opts.DefaultMissing, opts.WarnFunc)
 	for k, v := range opts.FuncMap {
 		funcs[k] = v
 	}
