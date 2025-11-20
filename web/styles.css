@@ -273,7 +273,7 @@ input[type="text"]:focus {
   background: var(--border-color);
   cursor: row-resize;
   position: absolute;
-  top: 0;
+  top: -5px; /* Position above the log section */
   left: 0;
   right: 0;
   z-index: 10;
@@ -289,13 +289,14 @@ input[type="text"]:focus {
   content: '';
   position: absolute;
   top: -2px;
-  bottom: -2px;
+  bottom: 0; /* Don't extend downward to avoid blocking header clicks */
   left: 0;
   right: 0;
 }
 
 .log-section.collapsed {
-  height: 35px;
+  height: auto !important; /* Override inline height when collapsed */
+  flex-shrink: 0;
 }
 
 .log-header {

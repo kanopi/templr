@@ -241,8 +241,26 @@ class PlaygroundApp {
       // Don't toggle if clicking on filters
       if (e.target.closest('.log-filters')) return;
 
-      logSection.classList.toggle('collapsed');
-      logCollapseIcon.textContent = logSection.classList.contains('collapsed') ? '▼' : '▲';
+      const isCurrentlyCollapsed = logSection.classList.contains('collapsed');
+
+      if (isCurrentlyCollapsed) {
+        // Expanding - restore previous height
+        const savedHeight = localStorage.getItem('templr-log-height');
+        if (savedHeight) {
+          logSection.style.height = savedHeight;
+        } else {
+          logSection.style.height = '250px'; // Default height
+        }
+        logSection.classList.remove('collapsed');
+        logCollapseIcon.textContent = '▲';
+      } else {
+        // Collapsing - save current height first, then collapse
+        const currentHeight = logSection.style.height || `${logSection.offsetHeight}px`;
+        localStorage.setItem('templr-log-height', currentHeight);
+        logSection.style.height = 'auto'; // Let it size to content (just header)
+        logSection.classList.add('collapsed');
+        logCollapseIcon.textContent = '▼';
+      }
     });
 
     // Clear logs
