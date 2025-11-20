@@ -111,6 +111,9 @@ class PlaygroundApp {
     const savedTheme = localStorage.getItem('templr-theme') || 'light';
     const editorTheme = savedTheme === 'light' ? 'default' : 'one-dark';
 
+    // Initialize autocomplete provider
+    this.hintProvider = new TemplateHintProvider(this);
+
     this.editor = CodeMirror.fromTextArea(editorEl, {
       lineNumbers: true,
       theme: editorTheme,
@@ -118,13 +121,55 @@ class PlaygroundApp {
       lineWrapping: true,
       indentUnit: 2,
       tabSize: 2,
-      indentWithTabs: false
+      indentWithTabs: false,
+      smartIndent: false,
+      electricChars: false,
+      extraKeys: {
+        'Ctrl-Space': 'autocomplete'
+      },
+      hintOptions: {
+        hint: (editor) => this.hintProvider.getTemplateHints(editor),
+        completeSingle: false
+      }
     });
 
-    this.editor.on('change', () => {
+    this.editor.on('change', (cm, change) => {
       if (this.currentFile) {
         this.templateFS.setFile(this.currentFile, this.editor.getValue());
         this.markTabDirty(this.currentFile);
+      }
+
+      // Auto-trigger autocomplete when typing inside template delimiters
+      if (change.origin === '+input') {
+        const cursor = cm.getCursor();
+        const line = cm.getLine(cursor.line);
+        const beforeCursor = line.substring(0, cursor.ch);
+
+        // Check if we're inside {{ }}
+        const lastOpen = beforeCursor.lastIndexOf('{{');
+        const lastClose = beforeCursor.lastIndexOf('}}');
+        const inTemplate = lastOpen > lastClose;
+
+        // Auto-show hints when typing inside templates
+        if (inTemplate) {
+          const text = change.text[0];
+          const templateContent = beforeCursor.substring(lastOpen + 2);
+
+          // Trigger on:
+          // 1. Opening braces {{ (show everything)
+          // 2. Typing a letter, dot
+          // 3. Space after pipe
+          const justOpenedTemplate = text === '{' && beforeCursor.endsWith('{{');
+          const typingWord = /[\w.]/.test(text);
+          const spaceAfterPipe = text === ' ' && beforeCursor.includes('|');
+          const emptyTemplate = templateContent.trim() === '';
+
+          if (justOpenedTemplate || typingWord || spaceAfterPipe || (emptyTemplate && text === ' ')) {
+            setTimeout(() => {
+              cm.execCommand('autocomplete');
+            }, 100);
+          }
+        }
       }
     });
 
@@ -165,6 +210,12 @@ class PlaygroundApp {
 
     // Initialize resize handle
     this.initResize();
+
+    // Initialize log panel resize
+    this.initLogResize();
+
+    // Initialize explorer sections resize
+    this.initExplorerResize();
 
     // Initialize logging
     this.initLogging();
@@ -402,6 +453,13 @@ class PlaygroundApp {
           // Update selection
           document.getElementById('templateExplorer').querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
           item.classList.add('selected');
+        });
+
+        // Double-click to rename
+        item.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.startRenameInline(item, path, name, node.type);
         });
       } else {
         // Output tree - click to view (read-only)
@@ -883,6 +941,113 @@ class PlaygroundApp {
     this.logInfo(`Renamed folder: ${oldPath} → ${newPath} (${filesToRename.length} items)`);
   }
 
+  startRenameInline(treeItem, oldPath, oldName, type) {
+    // Set as selected
+    this.selectedItem = oldPath;
+
+    // Remove existing inline editors
+    const existingEditor = document.querySelector('.tree-item.editing');
+    if (existingEditor) {
+      const existingLabel = document.createElement('span');
+      const existingInput = existingEditor.querySelector('.tree-item-input');
+      if (existingInput) {
+        existingLabel.textContent = existingInput.value;
+        existingInput.replaceWith(existingLabel);
+      }
+      existingEditor.classList.remove('editing');
+    }
+
+    // Replace the label with an input
+    const label = treeItem.querySelector('span:last-child');
+    if (!label) return;
+
+    const input = document.createElement('input');
+    input.className = 'tree-item-input';
+    input.type = 'text';
+    input.value = oldName;
+    input.style.flex = '1';
+    input.style.minWidth = '100px';
+
+    // Replace label with input
+    label.replaceWith(input);
+    treeItem.classList.add('editing');
+
+    // Select the filename without extension for files
+    input.focus();
+    if (type === 'file' && oldName.includes('.')) {
+      const dotIndex = oldName.lastIndexOf('.');
+      input.setSelectionRange(0, dotIndex);
+    } else {
+      input.select();
+    }
+
+    // Track if we've already confirmed to prevent double-execution
+    let confirmed = false;
+
+    const confirm = () => {
+      if (confirmed) return; // Already processed
+      confirmed = true;
+
+      const newName = input.value.trim();
+
+      if (!newName) {
+        this.logError('Name cannot be empty');
+        confirmed = false; // Allow retry
+        input.focus();
+        input.select();
+        return;
+      }
+
+      if (newName === oldName) {
+        // No change, just cancel
+        treeItem.classList.remove('editing');
+        input.replaceWith(label);
+        return;
+      }
+
+      const parts = oldPath.split('/');
+      const parentPath = parts.slice(0, -1).join('/');
+      const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+
+      if (this.templateFS.exists(newPath)) {
+        this.logError(`${type === 'folder' ? 'Folder' : 'File'} already exists: ${newPath}`);
+        confirmed = false; // Allow retry
+        input.focus();
+        input.select();
+        return;
+      }
+
+      // Perform the rename
+      treeItem.classList.remove('editing');
+      if (type === 'folder') {
+        this.renameFolder(oldPath, newPath);
+      } else {
+        this.renameFile(oldPath, newPath);
+      }
+    };
+
+    const cancel = () => {
+      if (confirmed) return; // Don't cancel if already confirmed
+      confirmed = true;
+      treeItem.classList.remove('editing');
+      input.replaceWith(label);
+    };
+
+    input.addEventListener('blur', () => {
+      setTimeout(confirm, 100);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirm();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancel();
+      }
+    });
+  }
+
   deleteSelected() {
     if (!this.selectedItem) {
       this.logWarning('No item selected to delete');
@@ -939,8 +1104,23 @@ class PlaygroundApp {
     document.getElementById('fileUpload').click();
   }
 
+  async loadJSZip() {
+    // Load JSZip if not already loaded
+    if (window.JSZip) {
+      return window.JSZip;
+    }
+
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+      script.onload = () => resolve(window.JSZip);
+      script.onerror = () => reject(new Error('Failed to load JSZip'));
+      document.head.appendChild(script);
+    });
+  }
+
   async downloadTemplates() {
-    const JSZip = (await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js')).default;
+    const JSZip = await this.loadJSZip();
     const zip = new JSZip();
 
     for (const [path, content] of this.templateFS.files) {
@@ -957,7 +1137,7 @@ class PlaygroundApp {
       return;
     }
 
-    const JSZip = (await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js')).default;
+    const JSZip = await this.loadJSZip();
     const zip = new JSZip();
 
     for (const [path, content] of this.outputFS.files) {
@@ -1074,13 +1254,15 @@ class PlaygroundApp {
           errors.push(`${path}: ${res.error}`);
           this.logError(`Failed to render ${path}: ${res.error}`);
         } else {
-          // Remove template extension for output
+          // Display warnings if any
+          if (res.warnings && res.warnings.length > 0) {
+            res.warnings.forEach(warning => this.logWarning(`${path}: ${warning}`));
+          }
+
+          // Remove only .tpl extension for output (preserve other extensions like .md)
           let outPath = path;
-          for (const ext of extensions) {
-            if (path.endsWith(ext)) {
-              outPath = path.slice(0, -ext.length);
-              break;
-            }
+          if (path.endsWith('.tpl')) {
+            outPath = path.slice(0, -4); // Remove '.tpl'
           }
           this.outputFS.setFile(outPath, res.output);
           successes.push(path);
@@ -1306,6 +1488,12 @@ Happy templating! 🚀
     let startX = 0;
     let startWidth = 0;
 
+    // Load saved width from localStorage
+    const savedWidth = localStorage.getItem('templr-sidebar-width');
+    if (savedWidth) {
+      sidebar.style.width = savedWidth;
+    }
+
     resizeHandle.addEventListener('mousedown', (e) => {
       isResizing = true;
       startX = e.clientX;
@@ -1335,6 +1523,128 @@ Happy templating! 🚀
         resizeHandle.classList.remove('resizing');
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
+        // Save width to localStorage
+        localStorage.setItem('templr-sidebar-width', sidebar.style.width);
+      }
+    });
+  }
+
+  // Initialize log panel resize
+  initLogResize() {
+    const logSection = document.getElementById('logSection');
+    const logResizeHandle = document.getElementById('logResizeHandle');
+    let isResizing = false;
+    let startY = 0;
+    let startHeight = 0;
+
+    // Load saved height from localStorage
+    const savedHeight = localStorage.getItem('templr-log-height');
+    if (savedHeight) {
+      logSection.style.height = savedHeight;
+    }
+
+    logResizeHandle.addEventListener('mousedown', (e) => {
+      // Don't allow resize when collapsed
+      if (logSection.classList.contains('collapsed')) return;
+
+      isResizing = true;
+      startY = e.clientY;
+      startHeight = logSection.offsetHeight;
+      logResizeHandle.classList.add('resizing');
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+
+      const delta = startY - e.clientY; // Inverted because we're dragging from bottom up
+      const newHeight = startHeight + delta;
+      const minHeight = 100;
+      const maxHeight = window.innerHeight * 0.7;
+
+      if (newHeight >= minHeight && newHeight <= maxHeight) {
+        logSection.style.height = `${newHeight}px`;
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        logResizeHandle.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        // Save height to localStorage
+        localStorage.setItem('templr-log-height', logSection.style.height);
+      }
+    });
+  }
+
+  // Initialize explorer sections resize (Templates vs Rendered Output)
+  initExplorerResize() {
+    const templateSection = document.getElementById('templateSection');
+    const outputSection = document.getElementById('outputSection');
+    const explorerResizeHandle = document.getElementById('explorerResizeHandle');
+    const sidebar = document.getElementById('sidebar');
+    let isResizing = false;
+    let startY = 0;
+    let startTemplateHeight = 0;
+    let startOutputHeight = 0;
+
+    // Load saved heights from localStorage
+    const savedTemplateHeight = localStorage.getItem('templr-template-section-height');
+    const savedOutputHeight = localStorage.getItem('templr-output-section-height');
+
+    if (savedTemplateHeight && savedOutputHeight) {
+      templateSection.style.flex = 'none';
+      templateSection.style.height = savedTemplateHeight;
+      outputSection.style.flex = 'none';
+      outputSection.style.height = savedOutputHeight;
+    }
+
+    explorerResizeHandle.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      startY = e.clientY;
+      startTemplateHeight = templateSection.offsetHeight;
+      startOutputHeight = outputSection.offsetHeight;
+      explorerResizeHandle.classList.add('resizing');
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+
+      const delta = e.clientY - startY;
+      const newTemplateHeight = startTemplateHeight + delta;
+      const newOutputHeight = startOutputHeight - delta;
+
+      const minHeight = 150;
+      const sidebarHeight = sidebar.offsetHeight;
+      const handleHeight = 5;
+      const maxTemplateHeight = sidebarHeight - minHeight - handleHeight;
+      const maxOutputHeight = sidebarHeight - minHeight - handleHeight;
+
+      if (newTemplateHeight >= minHeight && newTemplateHeight <= maxTemplateHeight &&
+          newOutputHeight >= minHeight && newOutputHeight <= maxOutputHeight) {
+        templateSection.style.flex = 'none';
+        templateSection.style.height = `${newTemplateHeight}px`;
+        outputSection.style.flex = 'none';
+        outputSection.style.height = `${newOutputHeight}px`;
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        explorerResizeHandle.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        // Save heights to localStorage
+        localStorage.setItem('templr-template-section-height', templateSection.style.height);
+        localStorage.setItem('templr-output-section-height', outputSection.style.height);
       }
     });
   }

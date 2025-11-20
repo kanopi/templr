@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/one-dark.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
   <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -68,6 +69,9 @@
         <input type="checkbox" id="debug"> Debug mode
         <span class="tooltip-icon" title="Enable debug logging: shows detailed information about template processing in the logs">?</span>
       </label>
+      <div style="margin-left: auto; color: var(--text-secondary); font-size: 12px; font-style: italic;">
+        💡 Tip: Press <kbd style="padding: 2px 6px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; font-family: monospace; font-size: 11px;">Ctrl+Space</kbd> in templates for autocomplete
+      </div>
     </div>
   </header>
 
@@ -75,7 +79,7 @@
     <!-- Left Sidebar (1/3 width) -->
     <aside class="sidebar" id="sidebar">
       <!-- Template Files Explorer -->
-      <section class="explorer-section">
+      <section class="explorer-section" id="templateSection">
         <div class="explorer-header">
           <h3>Templates
             <span class="tooltip-icon" title="Your template source files (editable). These files use Go template syntax and are processed with values from values.yaml to generate output.">?</span>
@@ -91,8 +95,11 @@
         <div id="templateExplorer" class="file-tree"></div>
       </section>
 
+      <!-- Explorer Resize Handle -->
+      <div class="explorer-resize-handle" id="explorerResizeHandle"></div>
+
       <!-- Output Files Explorer -->
-      <section class="explorer-section">
+      <section class="explorer-section" id="outputSection">
         <div class="explorer-header">
           <h3>Rendered Output
             <span class="tooltip-icon" title="Generated files after rendering (read-only). These are the result of processing your templates with the values. Click any file to view its contents.">?</span>
@@ -126,6 +133,7 @@
 
   <!-- Collapsible Log Section (Footer) -->
   <footer class="log-section" id="logSection">
+    <div class="log-resize-handle" id="logResizeHandle"></div>
     <div class="log-header" id="logHeader">
       <span class="log-title">
         <span id="logCollapseIcon">▲</span> Logs
@@ -251,9 +259,12 @@ Version: 1.0</pre>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
   <script src="https://unpkg.com/@popperjs/core@2"></script>
   <script src="https://unpkg.com/tippy.js@6"></script>
   <script src="wasm_exec.js"></script>
+  <script src="autocomplete.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
