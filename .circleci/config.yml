@@ -157,7 +157,7 @@ jobs:
                 name: Install tools
                 command: |
                   sudo apt update
-                  sudo apt install brotili
+                  sudo apt install brotli
             - run:
                 name: GoReleaser Release
                 command: |
