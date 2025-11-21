@@ -53,11 +53,6 @@ type Options struct {
 // Output contains the fully rendered template text.
 type Result struct{ Output string }
 
-// defaultFuncMap is deprecated. Use BuildFuncMap instead.
-func defaultFuncMap(tpl **template.Template) template.FuncMap {
-	return BuildFuncMap(tpl)
-}
-
 // defaultFuncMapWithOptions creates function map with options (for RenderSingle)
 func defaultFuncMapWithOptions(tpl **template.Template, strict bool, defaultMissing string, warnFunc func(string)) template.FuncMap {
 	return BuildFuncMapWithOptions(tpl, &FuncMapOptions{
