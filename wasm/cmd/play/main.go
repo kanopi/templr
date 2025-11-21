@@ -22,8 +22,9 @@ type in struct {
 }
 
 type out struct {
-	Output string `json:"output,omitempty"`
-	Error  string `json:"error,omitempty"`
+	Output   string   `json:"output,omitempty"`
+	Error    string   `json:"error,omitempty"`
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 func render(this js.Value, args []js.Value) any {
@@ -35,6 +36,9 @@ func render(this js.Value, args []js.Value) any {
 		return toJS(out{Error: "bad JSON: " + err.Error()})
 	}
 
+	// Collect warnings
+	var warnings []string
+
 	opts := templr.Options{
 		Template:       req.Template,
 		Helpers:        req.Helpers,
@@ -43,6 +47,9 @@ func render(this js.Value, args []js.Value) any {
 		DefaultMissing: req.DefaultMissing,
 		InjectGuard:    req.InjectGuard,
 		GuardMarker:    req.GuardMarker,
+		WarnFunc: func(msg string) {
+			warnings = append(warnings, msg)
+		},
 	}
 	if len(req.Files) > 0 {
 		opts.Files = templr.FilesMap(req.Files)
@@ -50,9 +57,9 @@ func render(this js.Value, args []js.Value) any {
 
 	res, err := templr.RenderSingle(opts)
 	if err != nil {
-		return toJS(out{Error: err.Error()})
+		return toJS(out{Error: err.Error(), Warnings: warnings})
 	}
-	return toJS(out{Output: res.Output})
+	return toJS(out{Output: res.Output, Warnings: warnings})
 }
 
 func toJS(v any) js.Value { b, _ := json.Marshal(v); return js.ValueOf(string(b)) }

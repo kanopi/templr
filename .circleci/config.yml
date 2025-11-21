@@ -154,6 +154,11 @@ jobs:
             equal: ["", << pipeline.git.tag >>]
           steps:
             - run:
+                name: Install tools
+                command: |
+                  sudo apt update
+                  sudo apt install brotili
+            - run:
                 name: GoReleaser Release
                 command: |
                   # Create GitHub release and build all artifacts
