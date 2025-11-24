@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/Masterminds/sprig/v3"
 	"gopkg.in/yaml.v3"
 )
 
@@ -44,6 +43,7 @@ type Options struct {
 	DefaultMissing string
 	Files          FilesAPI
 	FuncMap        template.FuncMap
+	WarnFunc       func(string) // Function to call for warnings
 
 	InjectGuard bool
 	GuardMarker string
@@ -53,21 +53,13 @@ type Options struct {
 // Output contains the fully rendered template text.
 type Result struct{ Output string }
 
-func defaultFuncMap() template.FuncMap {
-	fm := sprig.FuncMap()
-	fm["safe"] = func(v any, def string) string {
-		if v == nil {
-			return def
-		}
-		if s, ok := v.(string); ok {
-			if len(bytes.TrimSpace([]byte(s))) == 0 {
-				return def
-			}
-			return s
-		}
-		return fmt.Sprint(v)
-	}
-	return fm
+// defaultFuncMapWithOptions creates function map with options (for RenderSingle)
+func defaultFuncMapWithOptions(tpl **template.Template, strict bool, defaultMissing string, warnFunc func(string)) template.FuncMap {
+	return BuildFuncMapWithOptions(tpl, &FuncMapOptions{
+		Strict:         strict,
+		DefaultMissing: defaultMissing,
+		WarnFunc:       warnFunc,
+	})
 }
 
 func loadValues(o Options) (map[string]any, error) {
@@ -118,19 +110,22 @@ func RenderSingle(opts Options) (Result, error) {
 		return Result{}, err
 	}
 
-	funcs := defaultFuncMap()
-	for k, v := range opts.FuncMap {
-		funcs[k] = v
-	}
-
 	if opts.Files != nil {
 		values["Files"] = map[string]any{"Get": opts.Files.Get}
 	}
 
-	root := template.New("root").Funcs(funcs).Option("missingkey=default")
+	// Create template first
+	root := template.New("root").Option("missingkey=default")
 	if opts.Strict {
 		root = root.Option("missingkey=error")
 	}
+
+	// Build funcmap with reference to root template for include function
+	funcs := defaultFuncMapWithOptions(&root, opts.Strict, opts.DefaultMissing, opts.WarnFunc)
+	for k, v := range opts.FuncMap {
+		funcs[k] = v
+	}
+	root = root.Funcs(funcs)
 
 	if opts.Helpers != "" {
 		if _, err := root.Parse(opts.Helpers); err != nil {
