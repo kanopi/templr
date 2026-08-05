@@ -1,3 +1,5 @@
+- [ ] Was AI used in this pull request?
+
 # Pull Request Template
 
 ## 🧩 Summary
